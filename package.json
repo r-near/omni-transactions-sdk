@@ -28,6 +28,7 @@
     "@near-js/client": "^2.0.3",
     "@near-js/crypto": "^2.0.3",
     "@near-js/keystores": "^2.0.3",
+    "@near-js/keystores-node": "^2.0.3",
     "@near-js/providers": "^2.0.3",
     "@near-js/utils": "^2.0.3",
     "@noble/curves": "^1.9.2",

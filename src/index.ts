@@ -16,6 +16,7 @@ export {
   DomainIdSchema,
   SignRequestArgsSchema,
   ECDSASignatureSchema,
+  MPCSignatureResponseSchema,
   SignatureResultSchema,
   ContractConfigSchema,
 } from "./contract-types.js"

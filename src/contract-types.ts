@@ -66,17 +66,34 @@ export const DomainIdSchema = z.number().int().min(0)
 export type DomainId = z.infer<typeof DomainIdSchema>
 
 /**
- * Arguments for signature request
+ * Arguments for signature request (wrapped in request object for MPC contract)
  */
 export const SignRequestArgsSchema = z.object({
-  path: PathSchema,
-  payload: PayloadSchema,
-  domain_id: DomainIdSchema.default(0),
+  request: z.object({
+    domain_id: DomainIdSchema.default(0),
+    path: PathSchema,
+    payload_v2: PayloadSchema,
+  }),
 })
 export type SignRequestArgs = z.infer<typeof SignRequestArgsSchema>
 
 /**
- * ECDSA signature components
+ * MPC signature response format (actual format returned by NEAR MPC)
+ */
+export const MPCSignatureResponseSchema = z.object({
+  scheme: z.literal("Secp256k1"),
+  big_r: z.object({
+    affine_point: hexString, // Compressed point format
+  }),
+  s: z.object({
+    scalar: hexString,
+  }),
+  recovery_id: z.number().int().min(0).max(3),
+})
+export type MPCSignatureResponse = z.infer<typeof MPCSignatureResponseSchema>
+
+/**
+ * Standard ECDSA signature components (converted from MPC format)
  */
 export const ECDSASignatureSchema = z.object({
   r: hexStringBytes(32),

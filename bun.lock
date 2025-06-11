@@ -8,6 +8,7 @@
         "@near-js/client": "^2.0.3",
         "@near-js/crypto": "^2.0.3",
         "@near-js/keystores": "^2.0.3",
+        "@near-js/keystores-node": "^2.0.3",
         "@near-js/providers": "^2.0.3",
         "@near-js/utils": "^2.0.3",
         "@noble/curves": "^1.9.2",
@@ -108,6 +109,8 @@
     "@near-js/crypto": ["@near-js/crypto@2.0.3", "", { "dependencies": { "@near-js/types": "2.0.3", "@near-js/utils": "2.0.3", "@noble/curves": "1.8.1", "borsh": "1.0.0", "randombytes": "2.1.0", "secp256k1": "5.0.1" } }, "sha512-aIl0caWxkE5Xqqv8Tpa5g9HfwJmrOCMG4Sx1ALsx2JMdYlLKNOwX7fHIkyBFfOPKKW2UBR4XUyAn94/hdxLN3Q=="],
 
     "@near-js/keystores": ["@near-js/keystores@2.0.3", "", { "dependencies": { "@near-js/crypto": "2.0.3", "@near-js/types": "2.0.3" } }, "sha512-B5mDk85LuOaCAAAkoJY1gpdPex+4a1dAUIuDPTRHMCdtqyRgEmvYY1DIBSUzsTTWGTii9DvzPrH1Bt78BGJwww=="],
+
+    "@near-js/keystores-node": ["@near-js/keystores-node@2.0.3", "", { "dependencies": { "@near-js/crypto": "2.0.3", "@near-js/keystores": "2.0.3" } }, "sha512-f8I0WWpoBAJymuY8EOOL43YJppUFm031Pj8cvBEwPWdYD9z+jw6uA2sqKS8g0KLmj9j0fWGsM1OtCkDyLDQVzQ=="],
 
     "@near-js/providers": ["@near-js/providers@2.0.3", "", { "dependencies": { "@near-js/crypto": "2.0.3", "@near-js/transactions": "2.0.3", "@near-js/types": "2.0.3", "@near-js/utils": "2.0.3", "borsh": "1.0.0", "exponential-backoff": "^3.1.2" }, "optionalDependencies": { "node-fetch": "2.6.7" } }, "sha512-I+x5/P7KJB5x3fB1JruCMWv1eM3eOqS+YtK84ZgEStlffNTXyGTluF1pvnLqUtgeZEXn+zLAW3R98bucR3W8cQ=="],
 

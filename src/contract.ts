@@ -13,6 +13,8 @@ import {
   type ECDSASignature,
   type EDDSAMessage,
   EDDSAMessageSchema,
+  type MPCSignatureResponse,
+  MPCSignatureResponseSchema,
   type SignRequestArgs,
   SignRequestArgsSchema,
 } from "./contract-types.js"
@@ -83,30 +85,59 @@ export class Contract {
     // Validate input with Zod
     const validatedArgs = SignRequestArgsSchema.parse(args)
 
-    // Convert to contract format
-    const contractPayload =
-      validatedArgs.payload.type === "Ecdsa"
-        ? { Ecdsa: validatedArgs.payload.hash }
-        : { Eddsa: validatedArgs.payload.message }
-
-    // Make the signature request
-    const _result = await this.account.functionCall({
+    // Make the signature request (args are already in correct format)
+    const result = await this.account.functionCall({
       contractId: this.contractId,
       methodName: "sign",
-      args: {
-        path: validatedArgs.path,
-        payload_v2: contractPayload,
-        domain_id: validatedArgs.domain_id,
-      },
+      args: validatedArgs,
       gas: 300000000000000n, // 300 TGas
-      attachedDeposit: 0n,
+      attachedDeposit: 1n, // Required 1 yoctoNEAR deposit
     })
 
-    // Parse result and handle potential errors
-    // TODO: Implement proper result parsing based on actual response format
-    // This will need to be updated once we test with a real account
+    // Parse the response from the transaction result
+    const mpcResponse = this.parseSignatureResponse(result)
 
-    throw new Error("Sign method implementation pending - requires test account setup")
+    // Convert MPC format to standard ECDSA format
+    return this.convertMPCToECDSA(mpcResponse)
+  }
+
+  /**
+   * Parse the signature response from NEAR transaction result
+   */
+  private parseSignatureResponse(result: unknown): MPCSignatureResponse {
+    // The signature is in the SuccessValue of the transaction status
+    const res = result as { status?: { SuccessValue?: string } }
+    if (!res?.status?.SuccessValue) {
+      throw new Error("No success value in transaction result")
+    }
+
+    try {
+      // Decode base64 and parse JSON
+      const decoded = Buffer.from(res.status.SuccessValue, "base64").toString("utf8")
+      const parsed = JSON.parse(decoded)
+
+      // Validate with Zod schema
+      return MPCSignatureResponseSchema.parse(parsed)
+    } catch (error) {
+      throw new Error(`Failed to parse MPC signature response: ${(error as Error).message}`)
+    }
+  }
+
+  /**
+   * Convert MPC signature format to standard ECDSA format
+   */
+  private convertMPCToECDSA(mpcResponse: MPCSignatureResponse): ECDSASignature {
+    // Extract R from compressed point (remove "02" prefix and ensure 32 bytes)
+    const rHex = mpcResponse.big_r.affine_point.slice(2).padStart(64, "0")
+
+    // S scalar is already in correct format, just ensure 32 bytes
+    const sHex = mpcResponse.s.scalar.padStart(64, "0")
+
+    return {
+      r: rHex,
+      s: sHex,
+      recovery_id: mpcResponse.recovery_id,
+    }
   }
 
   /**
@@ -114,9 +145,11 @@ export class Contract {
    */
   static createECDSARequest(path: string, hash: string, domainId = 0): SignRequestArgs {
     return SignRequestArgsSchema.parse({
-      path,
-      payload: { type: "Ecdsa", hash },
-      domain_id: domainId,
+      request: {
+        domain_id: domainId,
+        path,
+        payload_v2: { type: "Ecdsa", hash },
+      },
     })
   }
 
@@ -125,9 +158,11 @@ export class Contract {
    */
   static createEDDSARequest(path: string, message: string, domainId = 0): SignRequestArgs {
     return SignRequestArgsSchema.parse({
-      path,
-      payload: { type: "Eddsa", message },
-      domain_id: domainId,
+      request: {
+        domain_id: domainId,
+        path,
+        payload_v2: { type: "Eddsa", message },
+      },
     })
   }
 }

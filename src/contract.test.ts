@@ -67,9 +67,11 @@ describe("Contract static methods", () => {
     const request = Contract.createECDSARequest("ethereum-1", hash, 0)
 
     expect(request).toEqual({
-      path: "ethereum-1",
-      payload: { type: "Ecdsa", hash },
-      domain_id: 0,
+      request: {
+        domain_id: 0,
+        path: "ethereum-1",
+        payload_v2: { type: "Ecdsa", hash },
+      },
     })
   })
 
@@ -83,9 +85,11 @@ describe("Contract static methods", () => {
     const request = Contract.createEDDSARequest("solana-1", message, 1)
 
     expect(request).toEqual({
-      path: "solana-1",
-      payload: { type: "Eddsa", message },
-      domain_id: 1,
+      request: {
+        domain_id: 1,
+        path: "solana-1",
+        payload_v2: { type: "Eddsa", message },
+      },
     })
   })
 
