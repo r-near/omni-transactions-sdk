@@ -1,13 +1,7 @@
 import { mod } from "@noble/curves/abstract/modular"
 import type { ProjPointType } from "@noble/curves/abstract/weierstrass"
 import { secp256k1 } from "@noble/curves/secp256k1"
-import {
-  bytesToHex,
-  bytesToNumberBE,
-  ensureBytes,
-  hexToBytes,
-  numberToBytesBE,
-} from "@noble/curves/utils"
+import { bytesToHex, bytesToNumberBE, ensureBytes, hexToBytes } from "@noble/curves/utils"
 import { keccak_256, sha3_256 } from "@noble/hashes/sha3"
 import { base58 } from "@scure/base"
 import { p2pkh, p2wpkh } from "@scure/btc-signer"
@@ -106,7 +100,7 @@ export class OmniKey {
    */
   static fromSecretBytes(bytes: Uint8Array): OmniKey {
     const validatedBytes = ensureBytes("secret key", bytes, 32)
-    const secretKeyScalar = bytesToNumberBE(validatedBytes)
+    const secretKeyScalar = secp256k1.CURVE.Fp.fromBytes(validatedBytes)
     return OmniKey.fromSecretKey(secretKeyScalar)
   }
 
@@ -146,11 +140,12 @@ export class OmniKey {
     const hash = sha3_256(new TextEncoder().encode(derivationPath))
 
     // Convert hash to scalar (NEAR MPC protocol specifies SHA3-256)
-    // Note: Using bytesToNumberBE + mod instead of mapHashToField since NEAR protocol
+    // Note: Using field utilities instead of mapHashToField since NEAR protocol
     // specifically uses 32-byte SHA3-256, but mapHashToField requires 48+ bytes
     let epsilon: bigint
     try {
-      epsilon = mod(bytesToNumberBE(hash), secp256k1.CURVE.n)
+      // Use field-aware conversion with automatic modular reduction
+      epsilon = secp256k1.CURVE.Fp.create(bytesToNumberBE(hash))
     } catch (error) {
       throw new Error(`Derived epsilon is not a valid scalar: ${error}`)
     }
@@ -262,7 +257,7 @@ export class OmniKey {
    * @throws Error if no secret key available
    */
   get secretBytes(): Uint8Array {
-    return numberToBytesBE(this.secretKey, 32)
+    return secp256k1.CURVE.Fp.toBytes(this.secretKey)
   }
 
   /**
@@ -270,7 +265,7 @@ export class OmniKey {
    * @throws Error if no secret key available
    */
   get secretHex(): string {
-    return bytesToHex(this.secretBytes)
+    return bytesToHex(secp256k1.CURVE.Fp.toBytes(this.secretKey))
   }
 
   // Utility methods
