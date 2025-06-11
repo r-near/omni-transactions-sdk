@@ -193,7 +193,7 @@ describe("OmniKey - Secret Key Mode (Testing)", () => {
     expect(() => secretKey.secretBytes).not.toThrow()
   })
 
-  test("should sign message hashes and return RSV format", () => {
+  test("should sign message hashes and return NEAR MPC format", () => {
     const secretKey = OmniKey.random()
     const publicOnlyKey = OmniKey.fromNEAR(TEST_FIXTURES.NEAR_PUBLIC_KEY)
     const messageHash = new Uint8Array(32).fill(42) // Simple test hash
@@ -202,12 +202,12 @@ describe("OmniKey - Secret Key Mode (Testing)", () => {
     const signature = secretKey.sign(messageHash)
     expect(signature).toHaveProperty("r")
     expect(signature).toHaveProperty("s")
-    expect(signature).toHaveProperty("v")
+    expect(signature).toHaveProperty("recovery")
     expect(typeof signature.r).toBe("bigint")
     expect(typeof signature.s).toBe("bigint")
-    expect(typeof signature.v).toBe("number")
-    expect(signature.v).toBeGreaterThanOrEqual(27)
-    expect(signature.v).toBeLessThanOrEqual(28)
+    expect(typeof signature.recovery).toBe("number")
+    expect(signature.recovery).toBeGreaterThanOrEqual(0)
+    expect(signature.recovery).toBeLessThanOrEqual(3)
 
     // Should throw for public-only keys
     expect(() => publicOnlyKey.sign(messageHash)).toThrow("Cannot sign - no secret key available")
@@ -225,7 +225,7 @@ describe("OmniKey - Secret Key Mode (Testing)", () => {
     // Should be deterministic (same inputs = same outputs)
     expect(sig1.r).toBe(sig2.r)
     expect(sig1.s).toBe(sig2.s)
-    expect(sig1.v).toBe(sig2.v)
+    expect(sig1.recovery).toBe(sig2.recovery)
   })
 })
 

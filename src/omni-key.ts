@@ -148,7 +148,7 @@ export class OmniKey {
     return bytesToHex(numberToBytesBE(this.secretKey, 32))
   }
 
-  sign(messageHash: Uint8Array): { r: bigint; s: bigint; v: number } {
+  sign(messageHash: Uint8Array): { r: bigint; s: bigint; recovery: number } {
     if (!this.canSign()) {
       throw new Error("Cannot sign - no secret key available")
     }
@@ -160,7 +160,7 @@ export class OmniKey {
     return {
       r: signature.r,
       s: signature.s,
-      v: recovery + 27, // Ethereum v format (27/28)
+      recovery, // Raw recovery ID (0-3) - matches NEAR MPC
     }
   }
 
