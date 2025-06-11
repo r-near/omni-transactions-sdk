@@ -1,5 +1,5 @@
 import { mod } from "@noble/curves/abstract/modular"
-import type { ProjPointType } from "@noble/curves/abstract/weierstrass"
+import type { ProjPointType, RecoveredSignatureType } from "@noble/curves/abstract/weierstrass"
 import { secp256k1 } from "@noble/curves/secp256k1"
 import { bytesToHex, bytesToNumberBE, numberToBytesBE } from "@noble/curves/utils"
 import { keccak_256, sha3_256 } from "@noble/hashes/sha3"
@@ -148,20 +148,11 @@ export class OmniKey {
     return bytesToHex(numberToBytesBE(this.secretKey, 32))
   }
 
-  sign(messageHash: Uint8Array): { r: bigint; s: bigint; recovery: number } {
+  sign(messageHash: Uint8Array): RecoveredSignatureType {
     if (!this.canSign()) {
       throw new Error("Cannot sign - no secret key available")
     }
-    const signature = secp256k1.sign(messageHash, this.secretKey)
-    const recovery = signature.recovery
-    if (recovery === undefined) {
-      throw new Error("Signature recovery failed")
-    }
-    return {
-      r: signature.r,
-      s: signature.s,
-      recovery, // Raw recovery ID (0-3) - matches NEAR MPC
-    }
+    return secp256k1.sign(messageHash, this.secretKey)
   }
 
   toString(): string {
