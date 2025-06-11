@@ -1,7 +1,7 @@
 import { mod } from "@noble/curves/abstract/modular"
 import type { ProjPointType } from "@noble/curves/abstract/weierstrass"
 import { secp256k1 } from "@noble/curves/secp256k1"
-import { bytesToHex, bytesToNumberBE, ensureBytes, hexToBytes } from "@noble/curves/utils"
+import { bytesToHex, bytesToNumberBE } from "@noble/curves/utils"
 import { keccak_256, sha3_256 } from "@noble/hashes/sha3"
 import { base58 } from "@scure/base"
 import { p2pkh, p2wpkh } from "@scure/btc-signer"
@@ -83,35 +83,19 @@ export class OmniKey {
   // Static constructors for testing (with secret key)
 
   /**
-   * Create from secret key scalar (testing only)
+   * Create from secret key (bigint, hex string, or bytes) (testing only)
+   * Handles all secret key input formats with unified validation
    * Generates the corresponding public key: publicKey = secretKey × G
    */
-  static fromSecretKey(secretKeyScalar: bigint): OmniKey {
-    if (secretKeyScalar >= secp256k1.CURVE.n) {
-      throw new Error("Secret key scalar must be less than curve order")
-    }
+  static fromSecret(secretKey: bigint | string | Uint8Array): OmniKey {
+    // Handle hex strings with 0x prefix (normPrivateKeyToScalar doesn't support these)
+    const cleanedKey =
+      typeof secretKey === "string" && secretKey.startsWith("0x") ? secretKey.slice(2) : secretKey
+
+    // Use @noble/curves built-in validation and conversion
+    const secretKeyScalar = secp256k1.utils.normPrivateKeyToScalar(cleanedKey)
     const publicKey = secp256k1.Point.BASE.multiply(secretKeyScalar)
     return new OmniKey(publicKey, secretKeyScalar)
-  }
-
-  /**
-   * Create from raw 32-byte secret key (testing only)
-   * Generates the corresponding public key: publicKey = secretKey × G
-   */
-  static fromSecretBytes(bytes: Uint8Array): OmniKey {
-    const validatedBytes = ensureBytes("secret key", bytes, 32)
-    const secretKeyScalar = secp256k1.CURVE.Fp.fromBytes(validatedBytes)
-    return OmniKey.fromSecretKey(secretKeyScalar)
-  }
-
-  /**
-   * Create from hex string secret key (testing only)
-   * Generates the corresponding public key: publicKey = secretKey × G
-   */
-  static fromSecretHex(hex: string): OmniKey {
-    const cleanHex = hex.startsWith("0x") ? hex.slice(2) : hex
-    const bytes = ensureBytes("secret key hex", hexToBytes(cleanHex), 32)
-    return OmniKey.fromSecretBytes(bytes)
   }
 
   /**
@@ -120,7 +104,7 @@ export class OmniKey {
    */
   static random(): OmniKey {
     const randomBytes = secp256k1.utils.randomPrivateKey()
-    return OmniKey.fromSecretBytes(randomBytes)
+    return OmniKey.fromSecret(randomBytes)
   }
 
   // Key derivation (always available)

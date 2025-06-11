@@ -122,7 +122,15 @@ describe("OmniKey - Secret Key Mode (Testing)", () => {
 
   test("should create from hex string", () => {
     const hexKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-    const secretKey = OmniKey.fromSecretHex(hexKey)
+    const secretKey = OmniKey.fromSecret(hexKey)
+
+    expect(secretKey.secretHex).toBe(hexKey)
+  })
+
+  test("should create from hex string with 0x prefix", () => {
+    const hexKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    const hexKeyWithPrefix = `0x${hexKey}`
+    const secretKey = OmniKey.fromSecret(hexKeyWithPrefix)
 
     expect(secretKey.secretHex).toBe(hexKey)
   })
@@ -131,8 +139,35 @@ describe("OmniKey - Secret Key Mode (Testing)", () => {
     const bytes = new Uint8Array(32)
     bytes.fill(42)
 
-    const secretKey = OmniKey.fromSecretBytes(bytes)
+    const secretKey = OmniKey.fromSecret(bytes)
     expect(secretKey.secretBytes).toEqual(bytes)
+  })
+
+  test("should create from bigint", () => {
+    const scalar = BigInt("0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef")
+    const secretKey = OmniKey.fromSecret(scalar)
+
+    expect(secretKey.secretKey).toBe(scalar)
+  })
+
+  test("should produce identical results from different input formats", () => {
+    const hexKey = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+    const scalar = BigInt(`0x${hexKey}`)
+    const bytes = new Uint8Array(32)
+    for (let i = 0; i < 32; i++) {
+      bytes[i] = Number.parseInt(hexKey.slice(i * 2, i * 2 + 2), 16)
+    }
+
+    const keyFromHex = OmniKey.fromSecret(hexKey)
+    const keyFromHexWithPrefix = OmniKey.fromSecret(`0x${hexKey}`)
+    const keyFromScalar = OmniKey.fromSecret(scalar)
+    const keyFromBytes = OmniKey.fromSecret(bytes)
+
+    // All should produce the same result
+    expect(keyFromHex.equals(keyFromHexWithPrefix)).toBe(true)
+    expect(keyFromHex.equals(keyFromScalar)).toBe(true)
+    expect(keyFromHex.equals(keyFromBytes)).toBe(true)
+    expect(keyFromHex.ethereum).toBe(keyFromScalar.ethereum)
   })
 
   test("should not expose secret in toString", () => {
@@ -195,7 +230,7 @@ describe("Cross-compatibility", () => {
       const derivedSecret = childWithSecret.secretKey
 
       // Calculate what the public key should be: derivedSecret × G
-      const expectedPublicKey = OmniKey.fromSecretKey(derivedSecret)
+      const expectedPublicKey = OmniKey.fromSecret(derivedSecret)
 
       // Verify they match
       expect(childWithSecret.equals(expectedPublicKey)).toBe(true)
