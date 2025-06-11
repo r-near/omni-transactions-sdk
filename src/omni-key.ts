@@ -148,6 +148,22 @@ export class OmniKey {
     return bytesToHex(numberToBytesBE(this.secretKey, 32))
   }
 
+  sign(messageHash: Uint8Array): { r: bigint; s: bigint; v: number } {
+    if (!this.canSign()) {
+      throw new Error("Cannot sign - no secret key available")
+    }
+    const signature = secp256k1.sign(messageHash, this.secretKey)
+    const recovery = signature.recovery
+    if (recovery === undefined) {
+      throw new Error("Signature recovery failed")
+    }
+    return {
+      r: signature.r,
+      s: signature.s,
+      v: recovery + 27, // Ethereum v format (27/28)
+    }
+  }
+
   toString(): string {
     const mode = this.canSign() ? "with-secret" : "public-only"
     return `OmniKey(${this.hex.slice(0, 16)}..., ${mode})`

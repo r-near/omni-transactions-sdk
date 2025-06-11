@@ -192,6 +192,41 @@ describe("OmniKey - Secret Key Mode (Testing)", () => {
     expect(() => secretKey.secretHex).not.toThrow()
     expect(() => secretKey.secretBytes).not.toThrow()
   })
+
+  test("should sign message hashes and return RSV format", () => {
+    const secretKey = OmniKey.random()
+    const publicOnlyKey = OmniKey.fromNEAR(TEST_FIXTURES.NEAR_PUBLIC_KEY)
+    const messageHash = new Uint8Array(32).fill(42) // Simple test hash
+
+    // Should work for keys with secret
+    const signature = secretKey.sign(messageHash)
+    expect(signature).toHaveProperty("r")
+    expect(signature).toHaveProperty("s")
+    expect(signature).toHaveProperty("v")
+    expect(typeof signature.r).toBe("bigint")
+    expect(typeof signature.s).toBe("bigint")
+    expect(typeof signature.v).toBe("number")
+    expect(signature.v).toBeGreaterThanOrEqual(27)
+    expect(signature.v).toBeLessThanOrEqual(28)
+
+    // Should throw for public-only keys
+    expect(() => publicOnlyKey.sign(messageHash)).toThrow("Cannot sign - no secret key available")
+  })
+
+  test("should produce deterministic signatures", () => {
+    const secretKey = OmniKey.fromSecret(
+      "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+    )
+    const messageHash = new Uint8Array(32).fill(123)
+
+    const sig1 = secretKey.sign(messageHash)
+    const sig2 = secretKey.sign(messageHash)
+
+    // Should be deterministic (same inputs = same outputs)
+    expect(sig1.r).toBe(sig2.r)
+    expect(sig1.s).toBe(sig2.s)
+    expect(sig1.v).toBe(sig2.v)
+  })
 })
 
 describe("Cross-compatibility", () => {
