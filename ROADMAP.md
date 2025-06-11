@@ -12,7 +12,8 @@ Building a TypeScript SDK for NEAR Chain Signatures (MPC network) that allows de
 ## Phase 1: MVP - Ethereum Support
 
 ### 1.1 Foundation
-- [x] `OmniPublicKey` class with multi-chain address derivation
+- [x] `OmniKey` unified class with multi-chain address derivation
+- [x] Production mode (public key only) and testing mode (with secret key)
 - [x] Package rename to `omni-transactions-sdk`
 
 ### 1.2 Core MPC Integration
@@ -30,8 +31,9 @@ Building a TypeScript SDK for NEAR Chain Signatures (MPC network) that allows de
 - [ ] Support for different Ethereum networks (mainnet, testnets)
 
 ### 1.4 Testing Infrastructure
-- [x] `OmniSecretKey` class for testing (same derivation scheme)
-- [x] Standard test fixtures and examples
+- [x] `OmniKey` testing mode with secret key support (same derivation scheme)
+- [x] Comprehensive test suite with hardcoded expected addresses
+- [x] Vitest integration with proper test fixtures
 - [ ] Mock MPC signer for unit tests
 - [ ] Integration test suite with test networks
 
