@@ -177,4 +177,31 @@ describe("Cross-compatibility", () => {
       expect(childPublicFromSecret.near).toBe(childPublicDirect.near)
     }
   })
+
+  test("cryptographic consistency: derived_secret × G = derived_public", () => {
+    // This is the fundamental test - verifies the math is correct
+    const rootSecret = OmniKey.random()
+
+    const testCases = [
+      { account: "alice.near", path: "ethereum-1" },
+      { account: "bob.near", path: "bitcoin-test" },
+      { account: "test.near", path: "some/long/path" },
+    ]
+
+    for (const { account, path } of testCases) {
+      const childWithSecret = rootSecret.derive(account, path)
+
+      // Extract the derived secret key
+      const derivedSecret = childWithSecret.secretKey
+
+      // Calculate what the public key should be: derivedSecret × G
+      const expectedPublicKey = OmniKey.fromSecretKey(derivedSecret)
+
+      // Verify they match
+      expect(childWithSecret.equals(expectedPublicKey)).toBe(true)
+      expect(childWithSecret.ethereum).toBe(expectedPublicKey.ethereum)
+      expect(childWithSecret.near).toBe(expectedPublicKey.near)
+      expect(childWithSecret.bitcoin).toBe(expectedPublicKey.bitcoin)
+    }
+  })
 })
