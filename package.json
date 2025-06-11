@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "test": "vitest run",
+    "test": "bun test",
     "lint": "biome check --write .",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "bun build",
@@ -18,8 +18,7 @@
     "@changesets/cli": "^2.29.4",
     "@types/bun": "latest",
     "changeset": "^0.2.6",
-    "lefthook": "^1.11.13",
-    "vitest": "^3.2.3"
+    "lefthook": "^1.11.13"
   },
   "peerDependencies": {
     "typescript": "^5"

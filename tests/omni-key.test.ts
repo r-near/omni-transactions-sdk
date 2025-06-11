@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest"
+import { describe, expect, test } from "bun:test"
 import { OmniKey } from "../src/omni-key.js"
 
 // Test fixtures with expected addresses for verification
