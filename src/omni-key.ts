@@ -1,7 +1,7 @@
 import { mod } from "@noble/curves/abstract/modular"
 import type { ProjPointType } from "@noble/curves/abstract/weierstrass"
 import { secp256k1 } from "@noble/curves/secp256k1"
-import { bytesToHex, bytesToNumberBE } from "@noble/curves/utils"
+import { bytesToHex, bytesToNumberBE, numberToBytesBE } from "@noble/curves/utils"
 import { keccak_256, sha3_256 } from "@noble/hashes/sha3"
 import { base58 } from "@scure/base"
 import { p2pkh, p2wpkh } from "@scure/btc-signer"
@@ -141,11 +141,11 @@ export class OmniKey {
   }
 
   get secretBytes(): Uint8Array {
-    return secp256k1.CURVE.Fp.toBytes(this.secretKey)
+    return numberToBytesBE(this.secretKey, 32)
   }
 
   get secretHex(): string {
-    return bytesToHex(secp256k1.CURVE.Fp.toBytes(this.secretKey))
+    return bytesToHex(numberToBytesBE(this.secretKey, 32))
   }
 
   toString(): string {
