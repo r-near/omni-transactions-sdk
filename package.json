@@ -1,0 +1,35 @@
+{
+  "name": "omni-transactions-sdk",
+  "module": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest",
+    "lint": "biome check",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "bun build",
+    "lefthook": "lefthook install",
+    "check-exports": "attw --pack .",
+    "release": "bun build && changeset publish"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.2",
+    "@biomejs/biome": "^1.9.4",
+    "@changesets/cli": "^2.29.4",
+    "@types/bun": "latest",
+    "changeset": "^0.2.6",
+    "lefthook": "^1.11.13",
+    "vitest": "^3.2.3"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@noble/curves": "^1.9.2",
+    "@noble/hashes": "^1.8.0",
+    "@scure/base": "^1.2.6",
+    "@scure/btc-signer": "^1.8.1",
+    "micro-eth-signer": "^0.15.0",
+    "zod": "^3.25.57"
+  }
+}
