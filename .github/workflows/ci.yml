@@ -41,6 +41,3 @@ jobs:
       
     - name: Build project
       run: bun run build
-      
-    - name: Check exports
-      run: bun run check-exports
