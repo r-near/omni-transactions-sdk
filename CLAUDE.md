@@ -10,6 +10,10 @@ This is the **omni-transactions-sdk** - a TypeScript SDK for NEAR Chain Signatur
 
 ## Workflow Requirements
 
+**IMPORTANT**: Always run type checking and linting before committing:
+- `bun run typecheck` - Must pass without errors
+- `bun run lint` - Must pass without errors
+
 **IMPORTANT**: Always commit changes automatically after completing tasks. Use semantic commit format:
 - `feat: add new feature`
 - `fix: resolve bug`
