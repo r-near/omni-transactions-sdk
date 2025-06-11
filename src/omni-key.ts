@@ -20,7 +20,7 @@ const ACCOUNT_DATA_SEPARATOR = ","
  */
 export class OmniKey {
   constructor(
-    private readonly publicKey: ProjPointType<bigint>,
+    readonly publicKey: ProjPointType<bigint>,
     private readonly _secretKey?: bigint,
   ) {}
 
@@ -115,9 +115,6 @@ export class OmniKey {
   }
 
   // Public key properties
-  get rawPoint(): ProjPointType<bigint> {
-    return this.publicKey
-  }
 
   get bytes(): Uint8Array {
     return this.publicKey.toBytes(false)
@@ -149,10 +146,6 @@ export class OmniKey {
 
   get secretHex(): string {
     return bytesToHex(secp256k1.CURVE.Fp.toBytes(this.secretKey))
-  }
-
-  equals(other: OmniKey): boolean {
-    return this.publicKey.equals(other.publicKey)
   }
 
   toString(): string {

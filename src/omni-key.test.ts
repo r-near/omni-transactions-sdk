@@ -54,8 +54,8 @@ describe("OmniKey - Public Key Mode", () => {
     const child1b = rootKey.derive(TEST_FIXTURES.PREDECESSOR_ID, "ethereum-1")
     const child2 = rootKey.derive(TEST_FIXTURES.PREDECESSOR_ID, "ethereum-2")
 
-    expect(child1a.equals(child1b)).toBe(true)
-    expect(child1a.equals(child2)).toBe(false)
+    expect(child1a.publicKey.equals(child1b.publicKey)).toBe(true)
+    expect(child1a.publicKey.equals(child2.publicKey)).toBe(false)
   })
 
   test("should generate different addresses for different chains", () => {
@@ -95,7 +95,7 @@ describe("OmniKey - Public Key Mode", () => {
     for (const path of TEST_FIXTURES.TEST_PATHS) {
       const derivedKey = rootKey.derive(TEST_FIXTURES.PREDECESSOR_ID, path)
       expect(derivedKey).toBeDefined()
-      expect(derivedKey.equals(rootKey)).toBe(false)
+      expect(derivedKey.publicKey.equals(rootKey.publicKey)).toBe(false)
     }
   })
 })
@@ -117,7 +117,7 @@ describe("OmniKey - Secret Key Mode (Testing)", () => {
     const childPublic = childSecret
     const childPublicDirect = rootPublic.derive(TEST_FIXTURES.PREDECESSOR_ID, "test-key-1")
 
-    expect(childPublic.equals(childPublicDirect)).toBe(true)
+    expect(childPublic.publicKey.equals(childPublicDirect.publicKey)).toBe(true)
   })
 
   test("should create from hex string", () => {
@@ -164,9 +164,9 @@ describe("OmniKey - Secret Key Mode (Testing)", () => {
     const keyFromBytes = OmniKey.fromSecret(bytes)
 
     // All should produce the same result
-    expect(keyFromHex.equals(keyFromHexWithPrefix)).toBe(true)
-    expect(keyFromHex.equals(keyFromScalar)).toBe(true)
-    expect(keyFromHex.equals(keyFromBytes)).toBe(true)
+    expect(keyFromHex.publicKey.equals(keyFromHexWithPrefix.publicKey)).toBe(true)
+    expect(keyFromHex.publicKey.equals(keyFromScalar.publicKey)).toBe(true)
+    expect(keyFromHex.publicKey.equals(keyFromBytes.publicKey)).toBe(true)
     expect(keyFromHex.ethereum).toBe(keyFromScalar.ethereum)
   })
 
@@ -206,7 +206,7 @@ describe("Cross-compatibility", () => {
       const childPublicFromSecret = childSecret
       const childPublicDirect = rootPublic.derive("test.near", path)
 
-      expect(childPublicFromSecret.equals(childPublicDirect)).toBe(true)
+      expect(childPublicFromSecret.publicKey.equals(childPublicDirect.publicKey)).toBe(true)
       expect(childPublicFromSecret.ethereum).toBe(childPublicDirect.ethereum)
       expect(childPublicFromSecret.bitcoin).toBe(childPublicDirect.bitcoin)
       expect(childPublicFromSecret.near).toBe(childPublicDirect.near)
@@ -233,7 +233,7 @@ describe("Cross-compatibility", () => {
       const expectedPublicKey = OmniKey.fromSecret(derivedSecret)
 
       // Verify they match
-      expect(childWithSecret.equals(expectedPublicKey)).toBe(true)
+      expect(childWithSecret.publicKey.equals(expectedPublicKey.publicKey)).toBe(true)
       expect(childWithSecret.ethereum).toBe(expectedPublicKey.ethereum)
       expect(childWithSecret.near).toBe(expectedPublicKey.near)
       expect(childWithSecret.bitcoin).toBe(expectedPublicKey.bitcoin)
