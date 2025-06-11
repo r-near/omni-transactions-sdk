@@ -33,7 +33,11 @@ Batch related changes into single commits rather than committing every individua
 
 ### Current Components
 
-- **ChainSignatureKey** (`src/chain-signature-key.ts`): Core class wrapping secp256k1 point with multi-chain address derivation. Uses NEAR MPC recovery scheme with SHA3-256 hashing: `child_pubkey = tweak * G + parent_pubkey`
+- **OmniPublicKey** (`src/omni-key.ts`): Core class wrapping secp256k1 point with multi-chain address derivation. Uses NEAR MPC recovery scheme with SHA3-256 hashing: `child_pubkey = tweak * G + parent_pubkey`
+
+- **OmniSecretKey** (`src/omni-key.ts`): Test-only secret key class for local development. Uses same NEAR MPC derivation scheme with scalar addition: `child_secret = (epsilon + parent_secret) mod n`. **WARNING: For testing purposes only!**
+
+- **TEST_FIXTURES** (`src/omni-key.ts`): Standard test fixtures including sample keys, account IDs, and derivation paths for development and testing
 
 ### Planned Architecture (see ROADMAP.md)
 

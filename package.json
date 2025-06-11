@@ -5,7 +5,7 @@
   "scripts": {
     "build": "tsc",
     "test": "vitest",
-    "lint": "biome check",
+    "lint": "biome check --write .",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "bun build",
     "lefthook": "lefthook install",
