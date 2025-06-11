@@ -1,6 +1,13 @@
+import { mod } from "@noble/curves/abstract/modular"
 import type { ProjPointType } from "@noble/curves/abstract/weierstrass"
 import { secp256k1 } from "@noble/curves/secp256k1"
-import { bytesToHex, bytesToNumberBE, numberToBytesBE } from "@noble/curves/utils"
+import {
+  bytesToHex,
+  bytesToNumberBE,
+  ensureBytes,
+  hexToBytes,
+  numberToBytesBE,
+} from "@noble/curves/utils"
 import { keccak_256, sha3_256 } from "@noble/hashes/sha3"
 import { base58 } from "@scure/base"
 import { p2pkh, p2wpkh } from "@scure/btc-signer"
@@ -98,10 +105,8 @@ export class OmniKey {
    * Generates the corresponding public key: publicKey = secretKey × G
    */
   static fromSecretBytes(bytes: Uint8Array): OmniKey {
-    if (bytes.length !== 32) {
-      throw new Error(`Secret key must be exactly 32 bytes, got ${bytes.length}`)
-    }
-    const secretKeyScalar = bytesToNumberBE(bytes)
+    const validatedBytes = ensureBytes("secret key", bytes, 32)
+    const secretKeyScalar = bytesToNumberBE(validatedBytes)
     return OmniKey.fromSecretKey(secretKeyScalar)
   }
 
@@ -111,13 +116,7 @@ export class OmniKey {
    */
   static fromSecretHex(hex: string): OmniKey {
     const cleanHex = hex.startsWith("0x") ? hex.slice(2) : hex
-    if (cleanHex.length !== 64) {
-      throw new Error(`Secret key hex must be 64 characters, got ${cleanHex.length}`)
-    }
-    const bytes = new Uint8Array(32)
-    for (let i = 0; i < 32; i++) {
-      bytes[i] = Number.parseInt(cleanHex.slice(i * 2, i * 2 + 2), 16)
-    }
+    const bytes = ensureBytes("secret key hex", hexToBytes(cleanHex), 32)
     return OmniKey.fromSecretBytes(bytes)
   }
 
@@ -146,9 +145,12 @@ export class OmniKey {
     const derivationPath = `${TWEAK_DERIVATION_PREFIX}${predecessorId}${ACCOUNT_DATA_SEPARATOR}${path}`
     const hash = sha3_256(new TextEncoder().encode(derivationPath))
 
+    // Convert hash to scalar (NEAR MPC protocol specifies SHA3-256)
+    // Note: Using bytesToNumberBE + mod instead of mapHashToField since NEAR protocol
+    // specifically uses 32-byte SHA3-256, but mapHashToField requires 48+ bytes
     let epsilon: bigint
     try {
-      epsilon = secp256k1.CURVE.Fp.create(bytesToNumberBE(hash))
+      epsilon = mod(bytesToNumberBE(hash), secp256k1.CURVE.n)
     } catch (error) {
       throw new Error(`Derived epsilon is not a valid scalar: ${error}`)
     }
@@ -159,7 +161,7 @@ export class OmniKey {
 
     // Secret key derivation (if available): child_secret = (ε + parent_secret) mod n
     const childSecretKey =
-      this._secretKey !== undefined ? (epsilon + this._secretKey) % secp256k1.CURVE.n : undefined
+      this._secretKey !== undefined ? mod(epsilon + this._secretKey, secp256k1.CURVE.n) : undefined
 
     return new OmniKey(childPublicKey, childSecretKey)
   }
