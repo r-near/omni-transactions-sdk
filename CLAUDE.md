@@ -67,3 +67,7 @@ Batch related changes into single commits rather than committing every individua
 - TypeScript with strict settings and NodeNext module resolution
 - Vitest for testing
 - Changesets for release management
+
+## Development Best Practices
+
+- Remember to use the GitHub CLI (`gh`) for all GitHub-related tasks.
