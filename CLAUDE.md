@@ -28,7 +28,8 @@ Batch related changes into single commits rather than committing every individua
 - `bun install` - Install dependencies
 - `bun run src/index.ts` - Run the main application
 - `bun build` - Build the project using TypeScript compiler
-- `bun test` - Run tests using Vitest
+- `bun test` - Run unit tests using Bun test
+- `bun test:all` - Run all tests (unit + integration)
 - `bun run lint` - Run Biome linter and formatter checks
 - `bun run typecheck` - Type check without emitting files
 - `bun run check-exports` - Verify package exports using Are The Types Wrong
@@ -37,16 +38,27 @@ Batch related changes into single commits rather than committing every individua
 
 ### Current Components
 
-- **OmniKey** (`src/omni-key.ts`): Unified secp256k1 key class for NEAR Chain Signatures. Can operate in two modes:
-  - *Production mode*: Public key only, can derive addresses and child keys 
-  - *Testing mode*: Includes secret key, can mock MPC signing behavior
-  - Uses NEAR MPC recovery scheme: `child_pubkey = tweak * G + parent_pubkey` and `child_secret = (epsilon + parent_secret) mod n`
+- **MPCKey** (`src/mpc-key.ts`): Production secp256k1 key class for NEAR Chain Signatures
+  - Public key only, can derive addresses and child keys
+  - Uses NEAR MPC recovery scheme: `child_pubkey = tweak * G + parent_pubkey`
+  
+- **MockMPCKey** (`src/mpc-key.ts`): Testing extension of MPCKey with secret key capabilities
+  - Includes secret key for local signing and testing
+  - Uses same derivation scheme: `child_secret = (epsilon + parent_secret) mod n`
+  
+- **Contract** (`src/contract.ts`): NEAR Chain Signatures MPC contract interface
+  - Submit signature requests to NEAR MPC network
+  - Handle ECDSA and EDDSA signature responses
+  - Validate and parse MPC signature responses
+  
+- **Types** (`src/types.ts`): Zod schemas and TypeScript types for MPC contract
+  - Payload validation for signature requests
+  - Response parsing and validation
+  - Contract configuration types
 
 ### Planned Architecture (see ROADMAP.md)
 
 - **Chain-specific modules**: Ethereum (viem integration), Bitcoin, future Solana support
-- **MPC Integration**: NEAR smart contract interface, signature request/response handling
-- **Test utilities**: MPCSecretKey for local testing with same derivation scheme
 - **Library adapters**: Work with existing transaction libraries rather than replacing them
 
 ### Integration Strategy
@@ -61,15 +73,16 @@ Batch related changes into single commits rather than committing every individua
 - `@scure/base` for base58 encoding/decoding  
 - `@scure/btc-signer` for Bitcoin address generation
 - `micro-eth-signer` for Ethereum operations
-- `zod` for schema validation
-- Future: `viem` for Ethereum integration, `near-api-js` for NEAR MPC calls
+- `@near-js/*` packages for NEAR protocol integration and MPC contract calls
+- `zod` for schema validation and type safety
+- Future: `viem` for Ethereum integration
 
 ### Development Tools
 
 - Bun as runtime and package manager
 - Biome for linting/formatting (double quotes, semicolons as needed, 100 char line width)  
 - TypeScript with strict settings and NodeNext module resolution
-- Vitest for testing
+- Bun test for testing
 - Changesets for release management
 
 ## Development Best Practices
