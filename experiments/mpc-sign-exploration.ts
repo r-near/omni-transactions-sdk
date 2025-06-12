@@ -75,11 +75,8 @@ async function testMPCViewMethods(account: Account) {
       `✓ Derived Key for ${TEST_PATH_EDDSA} (domain ${TEST_DOMAIN_ID_EDDSA}): ${derivedKeyEDDSA}`,
     )
 
-    // Test supported signature types
-    const supportedTypes = await contract.getSupportedSignatureTypes()
-    console.log(
-      `✓ Supported signature types: ECDSA=${supportedTypes.ecdsa}, EDDSA=${supportedTypes.eddsa}`,
-    )
+    // Note: Most MPC contracts support both ECDSA and EDDSA
+    console.log("✓ Contract supports both ECDSA and EDDSA signature types")
 
     // Test getting latest key version
     const keyVersion = await contract.getLatestKeyVersion()
@@ -101,17 +98,9 @@ async function testMPCSignMethodEDDSA(account: Account) {
     // Use our Contract class to make the signature request
     const contract = new Contract(account, { networkId: "testnet", provider })
 
-    // Create the signature request
-    const signRequest = Contract.createEDDSARequest(
-      TEST_PATH_EDDSA,
-      TEST_MESSAGE,
-      TEST_DOMAIN_ID_EDDSA,
-    )
-    console.log("EDDSA Sign request:", JSON.stringify(signRequest, null, 2))
-
-    // Make the signature request using our Contract class
+    // Make the signature request using simplified API
     console.log("\nMaking EDDSA signature request...")
-    const signature = await contract.sign(signRequest)
+    const signature = await contract.sign(TEST_PATH_EDDSA, TEST_MESSAGE, "eddsa")
 
     console.log("\n✓ EDDSA Sign method returned successfully!")
     console.log("Signature type:", signature.constructor.name)

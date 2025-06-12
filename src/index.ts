@@ -1,10 +1,7 @@
 export { OmniKey } from "./omni-key.js"
 export {
   Contract,
-  createContract,
   DEFAULT_CONTRACT_IDS,
-  validateECDSAHash,
-  validateEDDSAMessage,
   type MPCSignature,
 } from "./contract.js"
 

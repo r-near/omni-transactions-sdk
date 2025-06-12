@@ -11,16 +11,10 @@ import { bytesToNumberBE, hexToBytes } from "@noble/curves/abstract/utils"
 import { secp256k1 } from "@noble/curves/secp256k1"
 import {
   type ContractConfig,
-  type ECDSAHash,
   ECDSAHashSchema,
-  type EDDSAMessage,
   EDDSAMessageSchema,
-  type MPCECDSASignatureResponse,
-  type MPCEDDSASignatureResponse,
   type MPCSignatureResponse,
   MPCSignatureResponseSchema,
-  type SignRequestArgs,
-  SignRequestArgsSchema,
 } from "./contract-types.js"
 
 /**
@@ -83,81 +77,74 @@ export class Contract {
   }
 
   /**
-   * Check which signature types this MPC contract supports by testing available domains
-   */
-  async getSupportedSignatureTypes(): Promise<{ ecdsa: boolean; eddsa: boolean }> {
-    const support = { ecdsa: false, eddsa: false }
-
-    try {
-      // Test domain 0 (typically ECDSA/secp256k1)
-      await this.provider.callFunction(this.contractId, "public_key", { domain_id: 0 })
-      support.ecdsa = true
-    } catch {
-      // Domain 0 not available
-    }
-
-    try {
-      // Test domain 1 (typically EDDSA/Ed25519)
-      await this.provider.callFunction(this.contractId, "public_key", { domain_id: 1 })
-      support.eddsa = true
-    } catch {
-      // Domain 1 not available
-    }
-
-    return support
-  }
-
-  /**
-   * Request a signature for the given payload
+   * Sign a message or hash using NEAR Chain Signatures (MPC)
    *
-   * @param args Signature request arguments (validated with Zod)
-   * @returns Promise that resolves when signature is available
+   * @param path Derivation path for the key
+   * @param message Message or hash to sign (hex string)
+   * @param signatureType Type of signature (defaults to "ecdsa")
+   * @param domainId Domain ID for the signature (auto-detected if not provided)
+   * @returns Promise that resolves to the signature
    */
-  async sign(args: SignRequestArgs): Promise<MPCSignature> {
-    // Validate input with Zod (ensures payload is either Ecdsa or Eddsa)
-    const validatedArgs = SignRequestArgsSchema.parse(args)
-
-    // Note: Signature type is determined by domain_id parameter:
-    // domain_id 0 = ECDSA (secp256k1), domain_id 1 = EDDSA (Ed25519)
-
-    try {
-      // Make the signature request (args are already in correct format)
-      const result = await this.account.functionCall({
-        contractId: this.contractId,
-        methodName: "sign",
-        args: validatedArgs,
-        gas: 300000000000000n, // 300 TGas
-        attachedDeposit: 1n, // Required 1 yoctoNEAR deposit
-      })
-
-      // Parse the response from the transaction result
-      const mpcResponse = this.parseSignatureResponse(result)
-
-      // Convert MPC format to appropriate @noble/curves Signature
-      if (mpcResponse.scheme === "Secp256k1") {
-        return this.convertMPCToECDSASignature(mpcResponse)
-      }
-      if (mpcResponse.scheme === "Ed25519") {
-        return this.convertMPCToEDDSASignature(mpcResponse)
-      }
-      throw new Error(
-        `Unsupported signature scheme: ${(mpcResponse as { scheme?: string }).scheme || "unknown"}`,
-      )
-    } catch (error) {
-      // Provide helpful error messages for common issues
-      const errorMsg = (error as Error).message
-      if (errorMsg.includes("Payload is not Ecdsa")) {
-        throw new Error(
-          `EDDSA payload rejected for domain_id ${validatedArgs.request.domain_id}. This domain may only support ECDSA signatures. Try domain_id 1 for EDDSA.`,
-        )
-      }
-      if (errorMsg.includes("Payload is not EdDSA")) {
-        throw new Error(
-          `ECDSA payload rejected for domain_id ${validatedArgs.request.domain_id}. This domain may only support EDDSA signatures. Try domain_id 0 for ECDSA.`,
-        )
-      }
-      throw error
+  async sign(
+    path: string,
+    message: string,
+    signatureType: "ecdsa" | "eddsa" = "ecdsa",
+    domainId?: number,
+  ): Promise<MPCSignature> {
+    // Validate inputs
+    if (!path || path.trim().length === 0) {
+      throw new Error("Path is required and cannot be empty")
     }
+    if (!message || message.trim().length === 0) {
+      throw new Error("Message is required and cannot be empty")
+    }
+
+    // Auto-detect domain_id based on signature type
+    const finalDomainId = domainId ?? (signatureType === "ecdsa" ? 0 : 1)
+
+    // Validate message format based on signature type
+    if (signatureType === "ecdsa") {
+      ECDSAHashSchema.parse(message) // Validates 32-byte hex hash
+    } else {
+      EDDSAMessageSchema.parse(message) // Validates 32-1232 byte hex message
+    }
+
+    // Build MPC contract request
+    const mpcRequest = {
+      request: {
+        domain_id: finalDomainId,
+        path,
+        payload_v2: signatureType === "ecdsa" ? { Ecdsa: message } : { Eddsa: message },
+      },
+    }
+
+    // Make the signature request
+    const result = await this.account.functionCall({
+      contractId: this.contractId,
+      methodName: "sign",
+      args: mpcRequest,
+      gas: 300000000000000n, // 300 TGas
+      attachedDeposit: 1n, // Required 1 yoctoNEAR deposit
+    })
+
+    // Parse and convert the response
+    const mpcResponse = this.parseSignatureResponse(result)
+
+    // Convert MPC format to appropriate signature type
+    if (mpcResponse.scheme === "Secp256k1") {
+      // Extract R from compressed point (remove "02" prefix) and convert to bigint
+      const rBytes = hexToBytes(mpcResponse.big_r.affine_point.slice(2))
+      const sBytes = hexToBytes(mpcResponse.s.scalar)
+      const r = bytesToNumberBE(rBytes)
+      const s = bytesToNumberBE(sBytes)
+      return new secp256k1.Signature(r, s, mpcResponse.recovery_id)
+    }
+    if (mpcResponse.scheme === "Ed25519") {
+      return new Uint8Array(mpcResponse.signature)
+    }
+    throw new Error(
+      `Unsupported signature scheme: ${(mpcResponse as { scheme?: string }).scheme || "unknown"}`,
+    )
   }
 
   /**
@@ -175,87 +162,10 @@ export class Contract {
       const decoded = Buffer.from(res.status.SuccessValue, "base64").toString("utf8")
       const parsed = JSON.parse(decoded)
 
-      // Debug logging for Ed25519 responses
-      if (parsed.scheme === "Ed25519") {
-        console.log("Raw Ed25519 MPC Response:", JSON.stringify(parsed, null, 2))
-      }
-
       // Validate with Zod schema
       return MPCSignatureResponseSchema.parse(parsed)
     } catch (error) {
       throw new Error(`Failed to parse MPC signature response: ${(error as Error).message}`)
     }
   }
-
-  /**
-   * Convert MPC signature format to secp256k1 Signature (ECDSA)
-   */
-  private convertMPCToECDSASignature(
-    mpcResponse: MPCECDSASignatureResponse,
-  ): InstanceType<typeof secp256k1.Signature> {
-    // Extract R from compressed point (remove "02" prefix) and convert to bigint
-    const rBytes = hexToBytes(mpcResponse.big_r.affine_point.slice(2))
-    const sBytes = hexToBytes(mpcResponse.s.scalar)
-
-    const r = bytesToNumberBE(rBytes)
-    const s = bytesToNumberBE(sBytes)
-
-    // Create signature with recovery bit
-    return new secp256k1.Signature(r, s, mpcResponse.recovery_id)
-  }
-
-  /**
-   * Convert MPC signature format to Ed25519 signature bytes (EDDSA)
-   */
-  private convertMPCToEDDSASignature(mpcResponse: MPCEDDSASignatureResponse): Uint8Array {
-    // Convert the signature array (64 bytes) to Uint8Array
-    return new Uint8Array(mpcResponse.signature)
-  }
-
-  /**
-   * Create and validate a signature request for ECDSA payload
-   */
-  static createECDSARequest(path: string, hash: string, domainId = 0): SignRequestArgs {
-    return SignRequestArgsSchema.parse({
-      request: {
-        domain_id: domainId,
-        path,
-        payload_v2: { Ecdsa: hash },
-      },
-    })
-  }
-
-  /**
-   * Create and validate a signature request for EDDSA payload
-   */
-  static createEDDSARequest(path: string, message: string, domainId = 0): SignRequestArgs {
-    return SignRequestArgsSchema.parse({
-      request: {
-        domain_id: domainId,
-        path,
-        payload_v2: { Eddsa: message },
-      },
-    })
-  }
-}
-
-/**
- * Create a Contract instance with default configuration
- */
-export function createContract(account: Account, networkId: "mainnet" | "testnet"): Contract {
-  return new Contract(account, { networkId })
-}
-
-/**
- * Validate and parse an ECDSA hash
- */
-export function validateECDSAHash(hash: string): ECDSAHash {
-  return ECDSAHashSchema.parse(hash)
-}
-
-/**
- * Validate and parse an EDDSA message
- */
-export function validateEDDSAMessage(message: string): EDDSAMessage {
-  return EDDSAMessageSchema.parse(message)
 }

@@ -1,11 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { ECDSAHashSchema, PathSchema, PayloadSchema } from "./contract-types.js"
-import {
-  Contract,
-  DEFAULT_CONTRACT_IDS,
-  validateECDSAHash,
-  validateEDDSAMessage,
-} from "./contract.js"
+import { ECDSAHashSchema, EDDSAMessageSchema, PathSchema, PayloadSchema } from "./contract-types.js"
+import { DEFAULT_CONTRACT_IDS } from "./contract.js"
 
 describe("Zod schema validation", () => {
   test("ECDSAHashSchema validates 32-byte hex strings", () => {
@@ -41,61 +36,22 @@ describe("Zod schema validation", () => {
   })
 })
 
-describe("Contract utility functions", () => {
-  test("validateECDSAHash uses Zod validation", () => {
+describe("Contract input validation", () => {
+  // Note: We can't easily test the actual sign() method without a real account and provider
+  // These tests focus on the validation logic that would be called
+
+  test("ECDSAHashSchema validates 32-byte hex hashes", () => {
     const validHash = "a0b1c2d3e4f5061728394a5b6c7d8e9f0a1b2c3d4e5f6071829304a5b6c7d8e9"
-    expect(validateECDSAHash(validHash)).toBe(validHash)
-
-    expect(() => validateECDSAHash("invalid")).toThrow()
-    expect(() => validateECDSAHash("a0b1c2")).toThrow()
+    expect(ECDSAHashSchema.parse(validHash)).toBe(validHash)
+    expect(() => ECDSAHashSchema.parse("invalid")).toThrow()
+    expect(() => ECDSAHashSchema.parse("a0b1c2")).toThrow() // too short
   })
 
-  test("validateEDDSAMessage validates message length", () => {
-    const validMessage = "deadbeef".repeat(16) // 64 chars = 32 bytes
-    expect(validateEDDSAMessage(validMessage)).toBe(validMessage)
-
-    expect(() => validateEDDSAMessage("short")).toThrow()
-    expect(() => validateEDDSAMessage("xyz")).toThrow() // invalid hex
-  })
-})
-
-describe("Contract static methods", () => {
-  test("createECDSARequest creates and validates correct format", () => {
-    const hash = "a0b1c2d3e4f5061728394a5b6c7d8e9f0a1b2c3d4e5f6071829304a5b6c7d8e9"
-    const request = Contract.createECDSARequest("ethereum-1", hash, 0)
-
-    expect(request).toEqual({
-      request: {
-        domain_id: 0,
-        path: "ethereum-1",
-        payload_v2: { Ecdsa: hash },
-      },
-    })
-  })
-
-  test("createECDSARequest validates input", () => {
-    expect(() => Contract.createECDSARequest("ethereum-1", "invalid", 0)).toThrow()
-    // Path can be any string now, so this won't throw
-    expect(() => Contract.createECDSARequest("invalid_path", "a".repeat(64), 0)).not.toThrow()
-  })
-
-  test("createEDDSARequest creates and validates correct format", () => {
-    const message = "deadbeef".repeat(16) // 64 chars = 32 bytes minimum
-    const request = Contract.createEDDSARequest("solana-1", message, 1)
-
-    expect(request).toEqual({
-      request: {
-        domain_id: 1,
-        path: "solana-1",
-        payload_v2: { Eddsa: message },
-      },
-    })
-  })
-
-  test("createEDDSARequest validates input", () => {
-    expect(() => Contract.createEDDSARequest("solana-1", "short", 1)).toThrow()
-    // Path can be any string now, so this won't throw
-    expect(() => Contract.createEDDSARequest("invalid_path", "a".repeat(64), 1)).not.toThrow()
+  test("EDDSAMessageSchema validates hex messages", () => {
+    const validMessage = "deadbeef".repeat(16) // 64 chars = 32 bytes minimum
+    expect(EDDSAMessageSchema.parse(validMessage)).toBe(validMessage)
+    expect(() => EDDSAMessageSchema.parse("short")).toThrow() // too short
+    expect(() => EDDSAMessageSchema.parse("invalid_hex")).toThrow() // invalid hex
   })
 })
 
