@@ -13,8 +13,10 @@ import { UnencryptedFileSystemKeyStore } from "@near-js/keystores-node"
 import { JsonRpcProvider } from "@near-js/providers"
 import { hexToBytes } from "@noble/curves/abstract/utils"
 import { ed25519 } from "@noble/curves/ed25519"
+import { secp256k1 } from "@noble/curves/secp256k1"
 import { base58 } from "@scure/base"
 import { Contract, type MPCSignature } from "../src/contract.js"
+import { OmniKey } from "../src/omni-key.js"
 
 // Test account configuration
 const TEST_ACCOUNT_ID = "omni-sdk-test.testnet"
@@ -25,11 +27,16 @@ const NETWORK_ID = "testnet"
 const provider = new JsonRpcProvider({ url: "https://rpc.testnet.near.org" })
 const keyStore = new UnencryptedFileSystemKeyStore(path.join(os.homedir(), ".near-credentials"))
 
-// Test data for Ed25519 signature requests
+// Test data for signature requests
 const TEST_MESSAGE = "deadbeef".repeat(16) // 64 chars = 32 bytes minimum for EDDSA
 const TEST_MESSAGE_HEX = TEST_MESSAGE
 const TEST_PATH_EDDSA = "solana-test"
 const TEST_DOMAIN_ID_EDDSA = 1 // Ed25519
+
+// Test data for ECDSA signature requests
+const TEST_HASH_ECDSA = "a0b1c2d3e4f5061728394a5b6c7d8e9f0a1b2c3d4e5f6071829304a5b6c7d8e9" // 32-byte hash
+const TEST_PATH_ECDSA = "ethereum-test"
+const TEST_DOMAIN_ID_ECDSA = 0 // secp256k1
 
 async function createTestAccount(): Promise<Account> {
   console.log(`Creating account connection for: ${TEST_ACCOUNT_ID}`)
@@ -65,6 +72,16 @@ async function testMPCViewMethods(account: Account) {
     const publicKey = await contract.getPublicKey()
     console.log(`✓ MPC Public Key: ${publicKey}`)
 
+    // Test getting derived public key for ECDSA path with domain_id 0
+    const derivedKeyECDSA = await contract.getDerivedPublicKey(
+      TEST_ACCOUNT_ID,
+      TEST_PATH_ECDSA,
+      TEST_DOMAIN_ID_ECDSA,
+    )
+    console.log(
+      `✓ Derived Key for ${TEST_PATH_ECDSA} (domain ${TEST_DOMAIN_ID_ECDSA}): ${derivedKeyECDSA}`,
+    )
+
     // Test getting derived public key for EDDSA path with domain_id 1
     const derivedKeyEDDSA = await contract.getDerivedPublicKey(
       TEST_ACCOUNT_ID,
@@ -83,6 +100,39 @@ async function testMPCViewMethods(account: Account) {
     console.log(`✓ Latest Key Version: ${keyVersion}`)
   } catch (error) {
     console.error("✗ View method failed:", (error as Error).message)
+  }
+}
+
+async function testMPCSignMethodECDSA(account: Account) {
+  console.log("\\n=== Testing MPC ECDSA Sign Method ===")
+
+  try {
+    console.log(`Attempting to sign hash: ${TEST_HASH_ECDSA}`)
+    console.log(`Path: ${TEST_PATH_ECDSA}`)
+    console.log(`Domain ID: ${TEST_DOMAIN_ID_ECDSA} (secp256k1)`)
+    console.log(`Account: ${TEST_ACCOUNT_ID}`)
+
+    // Use our Contract class to make the signature request
+    const contract = new Contract(account, { networkId: "testnet", provider })
+
+    // Make the signature request using simplified API
+    console.log("\\nMaking ECDSA signature request...")
+    const signature = await contract.sign(TEST_PATH_ECDSA, TEST_HASH_ECDSA, "ecdsa")
+
+    console.log("\\n✓ ECDSA Sign method returned successfully!")
+    console.log("Signature type:", signature.constructor.name)
+    console.log("Signature:", signature)
+
+    if (signature instanceof secp256k1.Signature) {
+      console.log("  r:", signature.r.toString())
+      console.log("  s:", signature.s.toString())
+      console.log("  recovery:", signature.recovery)
+    }
+
+    return signature
+  } catch (error) {
+    console.error("✗ ECDSA Sign method failed:", (error as Error).message)
+    throw error
   }
 }
 
@@ -110,6 +160,53 @@ async function testMPCSignMethodEDDSA(account: Account) {
   } catch (error) {
     console.error("✗ EDDSA Sign method failed:", (error as Error).message)
     throw error
+  }
+}
+
+async function testECDSASignatureVerification(signature: MPCSignature, account: Account) {
+  console.log("\\n=== Testing ECDSA Signature Verification ===")
+
+  try {
+    // Use our Contract class to get the derived secp256k1 public key for domain 0
+    const contract = new Contract(account, { networkId: "testnet", provider })
+    const derivedPubKeyDomain0 = await contract.getDerivedPublicKey(
+      TEST_ACCOUNT_ID,
+      TEST_PATH_ECDSA,
+      TEST_DOMAIN_ID_ECDSA,
+    )
+    console.log(`Derived public key: ${derivedPubKeyDomain0}`)
+
+    // Parse the NEAR public key using OmniKey
+    const expectedKey = OmniKey.fromNEAR(derivedPubKeyDomain0)
+    const expectedPubKeyHex = expectedKey.publicKey.toHex(true) // compressed format
+    console.log(`Expected public key (hex): ${expectedPubKeyHex}`)
+
+    // Verify the signature (only if signature is secp256k1.Signature for ECDSA)
+    if (signature instanceof secp256k1.Signature) {
+      const hashBytes = hexToBytes(TEST_HASH_ECDSA)
+      console.log(`Hash to verify (hex): ${TEST_HASH_ECDSA}`)
+      console.log(`Hash bytes length: ${hashBytes.length}`)
+
+      // Recover the public key from the signature
+      const recoveredPoint = signature.recoverPublicKey(hashBytes)
+      const recoveredPubKey = recoveredPoint.toHex(true) // compressed format
+      console.log(`Recovered public key: ${recoveredPubKey}`)
+
+      // Check if they match
+      const keysMatch = recoveredPubKey.toLowerCase() === expectedPubKeyHex.toLowerCase()
+      console.log(`Public key recovery: ${keysMatch ? "PASSED" : "FAILED"}`)
+
+      // Also verify the signature directly using the hex format
+      const isValid = secp256k1.verify(signature, hashBytes, expectedPubKeyHex)
+
+      console.log(`\\n✓ Signature verification: ${isValid ? "PASSED" : "FAILED"}`)
+      return { keysMatch, isValid }
+    }
+    console.log("\\n✗ Expected secp256k1.Signature for ECDSA signature")
+    return { keysMatch: false, isValid: false }
+  } catch (error) {
+    console.error("✗ ECDSA Signature verification failed:", (error as Error).message)
+    return { keysMatch: false, isValid: false }
   }
 }
 
@@ -160,22 +257,38 @@ async function main() {
     // Test view methods first to make sure everything works
     await testMPCViewMethods(account)
 
+    // Test ECDSA signing and verification
+    const ecdsaSignature = await testMPCSignMethodECDSA(account)
+    const ecdsaVerification = await testECDSASignatureVerification(ecdsaSignature, account)
+
     // Test EDDSA signing and verification
     const eddsaSignature = await testMPCSignMethodEDDSA(account)
     const eddsaVerification = await testEDDSASignatureVerification(eddsaSignature, account)
 
     console.log("\n=== Summary ===")
-    console.log("Ed25519 Results:")
-    console.log("  ✓ Successfully tested MPC Ed25519 sign method")
+    console.log("ECDSA (secp256k1) Results:")
+    console.log("  ✓ Successfully tested MPC ECDSA sign method")
+    console.log("  ✓ Got secp256k1.Signature instance")
+    console.log(`  ✓ Public key recovery: ${ecdsaVerification.keysMatch ? "PASSED" : "FAILED"}`)
+    console.log(`  ✓ Signature verification: ${ecdsaVerification.isValid ? "PASSED" : "FAILED"}`)
+
+    console.log("\nEDDSA (Ed25519) Results:")
+    console.log("  ✓ Successfully tested MPC EDDSA sign method")
     console.log("  ✓ Got Ed25519 signature as Uint8Array")
     console.log(`  ✓ Signature verification: ${eddsaVerification.isValid ? "PASSED" : "FAILED"}`)
 
-    if (eddsaVerification.isValid) {
+    if (ecdsaVerification.keysMatch && ecdsaVerification.isValid && eddsaVerification.isValid) {
       console.log(
-        "\n🎉 Ed25519 tests passed! The MPC Ed25519 signature is cryptographically valid.",
+        "\n🎉 Both ECDSA and EDDSA tests passed! The MPC signatures are cryptographically valid.",
       )
     } else {
-      console.log("\n❌ Ed25519 signature verification failed.")
+      console.log("\n❌ Some signature verifications failed.")
+      if (!ecdsaVerification.keysMatch || !ecdsaVerification.isValid) {
+        console.log("  - ECDSA signature verification failed")
+      }
+      if (!eddsaVerification.isValid) {
+        console.log("  - EDDSA signature verification failed")
+      }
     }
   } catch (error) {
     console.error("\n=== Exploration Failed ===")
