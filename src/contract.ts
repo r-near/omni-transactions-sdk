@@ -16,6 +16,9 @@ import {
   EDDSAMessageSchema,
   type MPCSignatureResponse,
   MPCSignatureResponseSchema,
+  type SignRequest,
+  SignRequestSchema,
+  SignatureType,
 } from "./types.js"
 
 /**
@@ -76,42 +79,33 @@ export class Contract {
   /**
    * Sign a message or hash using NEAR Chain Signatures (MPC)
    *
-   * @param path Derivation path for the key
-   * @param message Message or hash to sign (hex string)
-   * @param signatureType Type of signature (defaults to "ecdsa")
-   * @param domainId Domain ID for the signature (auto-detected if not provided)
+   * @param request Sign request parameters
    * @returns Promise that resolves to the signature
    */
-  async sign(
-    path: string,
-    message: string,
-    signatureType: "ecdsa" | "eddsa" = "ecdsa",
-    domainId?: number,
-  ): Promise<MPCSignature> {
-    // Validate inputs
-    if (!path || path.trim().length === 0) {
-      throw new Error("Path is required and cannot be empty")
-    }
-    if (!message || message.trim().length === 0) {
-      throw new Error("Message is required and cannot be empty")
-    }
+  async sign(request: SignRequest): Promise<MPCSignature> {
+    // Validate inputs using Zod schema
+    const validatedRequest = SignRequestSchema.parse(request)
 
     // Auto-detect domain_id based on signature type
-    const finalDomainId = domainId ?? (signatureType === "ecdsa" ? 0 : 1)
+    const finalDomainId =
+      validatedRequest.domainId ?? (validatedRequest.signatureType === SignatureType.ECDSA ? 0 : 1)
 
     // Validate message format based on signature type
-    if (signatureType === "ecdsa") {
-      ECDSAHashSchema.parse(message) // Validates 32-byte hex hash
+    if (validatedRequest.signatureType === SignatureType.ECDSA) {
+      ECDSAHashSchema.parse(validatedRequest.message) // Validates 32-byte hex hash
     } else {
-      EDDSAMessageSchema.parse(message) // Validates 32-1232 byte hex message
+      EDDSAMessageSchema.parse(validatedRequest.message) // Validates 32-1232 byte hex message
     }
 
     // Build MPC contract request
     const mpcRequest = {
       request: {
         domain_id: finalDomainId,
-        path,
-        payload_v2: signatureType === "ecdsa" ? { Ecdsa: message } : { Eddsa: message },
+        path: validatedRequest.path,
+        payload_v2:
+          validatedRequest.signatureType === SignatureType.ECDSA
+            ? { Ecdsa: validatedRequest.message }
+            : { Eddsa: validatedRequest.message },
       },
     }
 

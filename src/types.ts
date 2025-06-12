@@ -7,6 +7,16 @@
 import type { Provider } from "@near-js/providers"
 import { z } from "zod/v4"
 
+// Enums for type safety
+
+/**
+ * Supported signature types for MPC contract
+ */
+export enum SignatureType {
+  ECDSA = "ecdsa",
+  EDDSA = "eddsa",
+}
+
 // Zod schemas for validation and type safety
 
 /**
@@ -130,3 +140,14 @@ export const ContractConfigSchema = z.object({
   provider: ProviderSchema,
 })
 export type ContractConfig = z.infer<typeof ContractConfigSchema>
+
+/**
+ * Schema for the new object-based sign request API
+ */
+export const SignRequestSchema = z.object({
+  path: PathSchema,
+  message: z.string().min(1, "Message is required and cannot be empty"),
+  signatureType: z.enum(SignatureType).default(SignatureType.ECDSA),
+  domainId: DomainIdSchema.optional(),
+})
+export type SignRequest = z.infer<typeof SignRequestSchema>

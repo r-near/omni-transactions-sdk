@@ -25,42 +25,42 @@ npm install omni-transactions-sdk
 ### Basic Usage
 
 ```typescript
-import { MPCKey, Contract } from 'omni-transactions-sdk'
-import { connect } from '@near-js/client'
+import { MPCKey, Contract, SignatureType } from 'omni-transactions-sdk'
+import { Account } from "@near-js/accounts"
+import { InMemorySigner } from "@near-js/signers"
+import { JsonRpcProvider } from "@near-js/providers"
 
-// Production: Create from NEAR public key (from MPC network)
-const key = MPCKey.fromNEAR(
+// Step 1: Start with MPC root public key (obtained from MPC contract)
+const mpcRootKey = MPCKey.fromNEAR(
   "secp256k1:3tFRbMqmoa6AAALMrEFAYCEoHcqKxeW38YptwowBVBtXK1vo36HDbUWuR6EZmoK4JcH6HDkNMGGqP1ouV7VZUWya"
 )
 
-// Generate addresses for different blockchains
-console.log("Ethereum:", key.ethereum)  // 0xa01ad27e7cb6f66bf8d7b188e9fb06afb8b01006
-console.log("Bitcoin:", key.bitcoin)    // bc1q2u3gxafx3y9en9yur3467audg2n69r4rpfmjv2
-console.log("NEAR:", key.near)          // secp256k1:3tFRbMqmoa6...
+// Step 2: Derive keys using your NEAR account ID and custom paths
+const callerAccountId = "alice.near"
 
-// Derive child keys for specific purposes
-const ethKey = key.derive("alice.near", "ethereum-1")
-const btcKey = key.derive("alice.near", "bitcoin-1")
+// Common path patterns:
+const ethKey = mpcRootKey.derive(callerAccountId, "ethereum,1")
+const btcKey = mpcRootKey.derive(callerAccountId, "bitcoin,1") 
+const customKey = mpcRootKey.derive(callerAccountId, "trading/ethereum/main")
 
-console.log("Ethereum child:", ethKey.ethereum)  // 0xa2869d3977dea9afc9b9c069491ac08f06f9e458
-console.log("Bitcoin child:", btcKey.bitcoin)    // bc1q96j504ke29e7ttnh0wkhnhr5qpj8alexu6h0gc
+// Step 3: Generate blockchain addresses from derived keys
+console.log("Ethereum address:", ethKey.ethereum)  // 0xa2869d3977dea9afc9b9c069491ac08f06f9e458
+console.log("Bitcoin address:", btcKey.bitcoin)    // bc1q96j504ke29e7ttnh0wkhnhr5qpj8alexu6h0gc
+console.log("Custom path address:", customKey.ethereum)
 
-// MPC signing for transactions
-import { Account } from "@near-js/accounts"
-import { getSignerFromKeystore } from "@near-js/client"
-import { UnencryptedFileSystemKeyStore } from "@near-js/keystores-node"
-import { JsonRpcProvider } from "@near-js/providers"
-
-const keyStore = new UnencryptedFileSystemKeyStore("~/.near-credentials")
+// Step 4: Sign transactions using MPC network
 const provider = new JsonRpcProvider({ url: "https://rpc.testnet.near.org" })
-const signer = await getSignerFromKeystore("your-account.testnet", "testnet", keyStore)
-const account = new Account("your-account.testnet", provider, signer)
-
+const signer = new InMemorySigner("your-private-key") // In practice, use secure key management
+const account = new Account(callerAccountId, provider, signer)
 const contract = new Contract(account, { networkId: "testnet", provider })
 
-// Sign a transaction hash with MPC network
-const messageHash = "0x1234567890abcdef..." // 32-byte hex hash
-const signature = await contract.sign("ethereum-1", messageHash, "ecdsa")
+// Sign an Ethereum transaction hash
+const ethTxHash = "a0b1c2d3e4f5061728394a5b6c7d8e9f0a1b2c3d4e5f6071829304a5b6c7d8e9f"
+const signature = await contract.sign({
+  path: "ethereum,1",
+  message: ethTxHash,
+  signatureType: SignatureType.ECDSA
+})
 console.log("MPC signature:", signature)
 ```
 
