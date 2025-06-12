@@ -114,17 +114,8 @@ export class Contract {
    * @returns Promise that resolves when signature is available
    */
   async sign(args: SignRequestArgs): Promise<MPCSignature> {
-    // Validate input with Zod
+    // Validate input with Zod (ensures payload is either Ecdsa or Eddsa)
     const validatedArgs = SignRequestArgsSchema.parse(args)
-
-    // Detect payload type
-    const payload = validatedArgs.request.payload_v2
-    const isECDSA = "Ecdsa" in payload
-    const isEDDSA = "Eddsa" in payload
-
-    if (!isECDSA && !isEDDSA) {
-      throw new Error("Unknown payload type - must be Ecdsa or Eddsa")
-    }
 
     // Note: Signature type is determined by domain_id parameter:
     // domain_id 0 = ECDSA (secp256k1), domain_id 1 = EDDSA (Ed25519)
