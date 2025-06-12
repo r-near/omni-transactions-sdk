@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, test } from "bun:test"
 import type { Account } from "@near-js/accounts"
 import { JsonRpcProvider } from "@near-js/providers"
 import { Contract } from "../../src/contract.js"
-import { MPCKey } from "../../src/omni-key.js"
+import { MPCKey } from "../../src/mpc-key.js"
 
 // Test configuration for view-only operations (no account needed)
 const TEST_CONFIG = {

@@ -16,7 +16,7 @@ import { ed25519 } from "@noble/curves/ed25519"
 import { secp256k1 } from "@noble/curves/secp256k1"
 import { base58 } from "@scure/base"
 import { Contract, type MPCSignature } from "../../src/contract.js"
-import { MPCKey } from "../../src/omni-key.js"
+import { MPCKey } from "../../src/mpc-key.js"
 
 // Test Configuration
 const TEST_CONFIG = {

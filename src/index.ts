@@ -1,4 +1,4 @@
-export { MPCKey, MockMPCKey } from "./omni-key.js"
+export { MPCKey, MockMPCKey } from "./mpc-key.js"
 export {
   Contract,
   DEFAULT_CONTRACT_IDS,
