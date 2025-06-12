@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { OmniKey } from "../src/omni-key.js"
+import { OmniKey } from "../../src/omni-key.js"
 
 // FastNEAR view-only RPC API endpoints (using mainnet MPC for testing)
 const FASTNEAR_BASE_URL = "https://rpc.web4.near.page/account/v1.signer/view"
