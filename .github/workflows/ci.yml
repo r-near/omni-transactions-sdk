@@ -28,8 +28,29 @@ jobs:
     - name: Run type check
       run: bun run typecheck
       
-    - name: Run tests
-      run: bun test
+    - name: Run unit tests
+      run: bun test tests/ --ignore tests/integration/
       
     - name: Build project
       run: bun run build
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: latest
+        
+    - name: Install dependencies
+      run: bun install --frozen-lockfile
+      
+    - name: Run integration tests
+      run: bun test tests/integration/
+      env:
+        NEAR_PRIVATE_KEY: ${{ secrets.NEAR_PRIVATE_KEY }}

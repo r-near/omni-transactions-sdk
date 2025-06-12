@@ -57,6 +57,25 @@ let testContract: Contract
 
 // Test Utilities
 async function createTestAccount(): Promise<Account> {
+  // Use environment variable in CI, fallback to keystore file locally
+  const privateKey = process.env.NEAR_PRIVATE_KEY
+  if (privateKey) {
+    // CI environment - use private key from environment
+    const { InMemoryKeyStore } = await import("@near-js/keystores")
+    const { KeyPair } = await import("@near-js/crypto")
+    const keyStore = new InMemoryKeyStore()
+    // biome-ignore lint/suspicious/noExplicitAny: NEAR KeyPair typing issue
+    const keyPair = KeyPair.fromString(privateKey as any)
+    await keyStore.setKey(TEST_CONFIG.networkId, TEST_CONFIG.accountId, keyPair)
+    const signer = await getSignerFromKeystore(
+      TEST_CONFIG.accountId,
+      TEST_CONFIG.networkId,
+      keyStore,
+    )
+    const provider = new JsonRpcProvider({ url: TEST_CONFIG.rpcUrl })
+    return new Account(TEST_CONFIG.accountId, provider, signer)
+  }
+  // Local development - use keystore file
   const keyStore = new UnencryptedFileSystemKeyStore(TEST_CONFIG.credentialsPath)
   const signer = await getSignerFromKeystore(TEST_CONFIG.accountId, TEST_CONFIG.networkId, keyStore)
   const provider = new JsonRpcProvider({ url: TEST_CONFIG.rpcUrl })
