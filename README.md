@@ -124,7 +124,7 @@ Unlike BIP32's multiplicative derivation, NEAR uses **additive derivation** whic
 Given a parent key and derivation parameters:
 
 1. **Derivation tweak**: 
-   $$\varepsilon = \text{SHA3-256}(\text{"near-mpc-recovery v0.1.0 epsilon derivation:"} + \text{account} + \text{","} + \text{path})$$
+   $$\varepsilon = \text{SHA3-256}(\text{``near-mpc-recovery v0.1.0 epsilon derivation:"} + \text{account} + \text{``,"} + \text{path})$$
 
 2. **Child secret key** (MPC network):
    $$s_{\text{child}} = (\varepsilon + s_{\text{parent}}) \bmod n$$
