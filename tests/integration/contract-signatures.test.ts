@@ -16,7 +16,7 @@ import { ed25519 } from "@noble/curves/ed25519"
 import { secp256k1 } from "@noble/curves/secp256k1"
 import { base58 } from "@scure/base"
 import { Contract, type MPCSignature } from "../../src/contract.js"
-import { OmniKey } from "../../src/omni-key.js"
+import { MPCKey } from "../../src/omni-key.js"
 
 // Test Configuration
 const TEST_CONFIG = {
@@ -121,8 +121,8 @@ async function verifyECDSASignature(
       throw new Error(`Invalid derived key format: ${derivedKeyStr}`)
     }
 
-    // Parse the NEAR public key using OmniKey
-    const expectedKey = OmniKey.fromNEAR(derivedKeyStr)
+    // Parse the NEAR public key using MPCKey
+    const expectedKey = MPCKey.fromNEAR(derivedKeyStr)
     const expectedPubKeyHex = expectedKey.publicKey.toHex(true) // compressed format
 
     // Verify signature

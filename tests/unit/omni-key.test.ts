@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { OmniKey } from "../../src/omni-key.js"
+import { MPCKey, MockMPCKey } from "../../src/omni-key.js"
 
 // Test fixtures with expected addresses for verification
 const TEST_FIXTURES = {
@@ -40,15 +40,15 @@ const TEST_FIXTURES = {
   },
 } as const
 
-describe("OmniKey - Public Key Mode", () => {
+describe("MPCKey - Public Key Mode", () => {
   test("should create from NEAR format", () => {
-    const key = OmniKey.fromNEAR(TEST_FIXTURES.NEAR_PUBLIC_KEY)
+    const key = MPCKey.fromNEAR(TEST_FIXTURES.NEAR_PUBLIC_KEY)
     expect(key).toBeDefined()
     expect(key.near).toBe(TEST_FIXTURES.NEAR_PUBLIC_KEY)
   })
 
   test("should derive consistent child keys", () => {
-    const rootKey = OmniKey.fromNEAR(TEST_FIXTURES.NEAR_PUBLIC_KEY)
+    const rootKey = MPCKey.fromNEAR(TEST_FIXTURES.NEAR_PUBLIC_KEY)
 
     const child1a = rootKey.derive(TEST_FIXTURES.PREDECESSOR_ID, "ethereum-1")
     const child1b = rootKey.derive(TEST_FIXTURES.PREDECESSOR_ID, "ethereum-1")
@@ -59,7 +59,7 @@ describe("OmniKey - Public Key Mode", () => {
   })
 
   test("should generate different addresses for different chains", () => {
-    const key = OmniKey.fromNEAR(TEST_FIXTURES.NEAR_PUBLIC_KEY)
+    const key = MPCKey.fromNEAR(TEST_FIXTURES.NEAR_PUBLIC_KEY)
 
     expect(key.ethereum).toMatch(/^0x[a-fA-F0-9]{40}$/)
     expect(key.bitcoinBech32).toMatch(/^bc1/)
@@ -68,7 +68,7 @@ describe("OmniKey - Public Key Mode", () => {
   })
 
   test("should generate exact expected addresses for root key", () => {
-    const key = OmniKey.fromNEAR(TEST_FIXTURES.NEAR_PUBLIC_KEY)
+    const key = MPCKey.fromNEAR(TEST_FIXTURES.NEAR_PUBLIC_KEY)
 
     expect(key.ethereum).toBe(TEST_FIXTURES.EXPECTED_ROOT_ADDRESSES.ethereum)
     expect(key.bitcoinBech32).toBe(TEST_FIXTURES.EXPECTED_ROOT_ADDRESSES.bitcoinBech32)
@@ -76,7 +76,7 @@ describe("OmniKey - Public Key Mode", () => {
   })
 
   test("should generate exact expected addresses for derived keys", () => {
-    const rootKey = OmniKey.fromNEAR(TEST_FIXTURES.NEAR_PUBLIC_KEY)
+    const rootKey = MPCKey.fromNEAR(TEST_FIXTURES.NEAR_PUBLIC_KEY)
 
     for (const [path, expectedAddresses] of Object.entries(
       TEST_FIXTURES.EXPECTED_DERIVED_ADDRESSES,
@@ -90,7 +90,7 @@ describe("OmniKey - Public Key Mode", () => {
   })
 
   test("should handle derivation paths correctly", () => {
-    const rootKey = OmniKey.fromNEAR(TEST_FIXTURES.NEAR_PUBLIC_KEY)
+    const rootKey = MPCKey.fromNEAR(TEST_FIXTURES.NEAR_PUBLIC_KEY)
 
     for (const path of TEST_FIXTURES.TEST_PATHS) {
       const derivedKey = rootKey.derive(TEST_FIXTURES.PREDECESSOR_ID, path)
@@ -100,9 +100,9 @@ describe("OmniKey - Public Key Mode", () => {
   })
 })
 
-describe("OmniKey - Secret Key Mode (Testing)", () => {
+describe("MockMPCKey - Secret Key Mode (Testing)", () => {
   test("should generate valid public key", () => {
-    const secretKey = OmniKey.random()
+    const secretKey = MockMPCKey.random()
     const publicKey = secretKey
 
     expect(publicKey).toBeDefined()
@@ -110,7 +110,7 @@ describe("OmniKey - Secret Key Mode (Testing)", () => {
   })
 
   test("should derive consistent child keys", () => {
-    const rootSecret = OmniKey.random()
+    const rootSecret = MockMPCKey.random()
     const rootPublic = rootSecret
 
     const childSecret = rootSecret.derive(TEST_FIXTURES.PREDECESSOR_ID, "test-key-1")
@@ -122,7 +122,7 @@ describe("OmniKey - Secret Key Mode (Testing)", () => {
 
   test("should create from hex string", () => {
     const hexKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-    const secretKey = OmniKey.fromSecret(hexKey)
+    const secretKey = MockMPCKey.fromSecret(hexKey)
 
     expect(secretKey.secretHex).toBe(hexKey)
   })
@@ -130,7 +130,7 @@ describe("OmniKey - Secret Key Mode (Testing)", () => {
   test("should create from hex string with 0x prefix", () => {
     const hexKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
     const hexKeyWithPrefix = `0x${hexKey}`
-    const secretKey = OmniKey.fromSecret(hexKeyWithPrefix)
+    const secretKey = MockMPCKey.fromSecret(hexKeyWithPrefix)
 
     expect(secretKey.secretHex).toBe(hexKey)
   })
@@ -139,13 +139,13 @@ describe("OmniKey - Secret Key Mode (Testing)", () => {
     const bytes = new Uint8Array(32)
     bytes.fill(42)
 
-    const secretKey = OmniKey.fromSecret(bytes)
+    const secretKey = MockMPCKey.fromSecret(bytes)
     expect(secretKey.secretBytes).toEqual(bytes)
   })
 
   test("should create from bigint", () => {
     const scalar = BigInt("0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef")
-    const secretKey = OmniKey.fromSecret(scalar)
+    const secretKey = MockMPCKey.fromSecret(scalar)
 
     expect(secretKey.secretKey).toBe(scalar)
   })
@@ -158,10 +158,10 @@ describe("OmniKey - Secret Key Mode (Testing)", () => {
       bytes[i] = Number.parseInt(hexKey.slice(i * 2, i * 2 + 2), 16)
     }
 
-    const keyFromHex = OmniKey.fromSecret(hexKey)
-    const keyFromHexWithPrefix = OmniKey.fromSecret(`0x${hexKey}`)
-    const keyFromScalar = OmniKey.fromSecret(scalar)
-    const keyFromBytes = OmniKey.fromSecret(bytes)
+    const keyFromHex = MockMPCKey.fromSecret(hexKey)
+    const keyFromHexWithPrefix = MockMPCKey.fromSecret(`0x${hexKey}`)
+    const keyFromScalar = MockMPCKey.fromSecret(scalar)
+    const keyFromBytes = MockMPCKey.fromSecret(bytes)
 
     // All should produce the same result
     expect(keyFromHex.publicKey.equals(keyFromHexWithPrefix.publicKey)).toBe(true)
@@ -171,31 +171,29 @@ describe("OmniKey - Secret Key Mode (Testing)", () => {
   })
 
   test("should not expose secret in toString", () => {
-    const secretKey = OmniKey.random()
+    const secretKey = MockMPCKey.random()
     expect(secretKey.toString()).toContain("with-secret")
   })
 
   test("should correctly identify signing capability", () => {
-    const publicOnlyKey = OmniKey.fromNEAR(TEST_FIXTURES.NEAR_PUBLIC_KEY)
-    const secretKey = OmniKey.random()
+    const publicOnlyKey = MPCKey.fromNEAR(TEST_FIXTURES.NEAR_PUBLIC_KEY)
+    const secretKey = MockMPCKey.random()
 
-    expect(publicOnlyKey.canSign()).toBe(false)
-    expect(secretKey.canSign()).toBe(true)
+    // MPCKey doesn't have signing methods
+    expect("sign" in publicOnlyKey).toBe(false)
 
-    // Should throw when trying to access secret from public-only key
-    expect(() => publicOnlyKey.secretKey).toThrow("No secret key available")
-    expect(() => publicOnlyKey.secretHex).toThrow("No secret key available")
-    expect(() => publicOnlyKey.secretBytes).toThrow("No secret key available")
+    // MockMPCKey has signing methods
+    expect("sign" in secretKey).toBe(true)
 
-    // Should work fine for secret key
+    // Should work fine for MockMPCKey
     expect(() => secretKey.secretKey).not.toThrow()
     expect(() => secretKey.secretHex).not.toThrow()
     expect(() => secretKey.secretBytes).not.toThrow()
   })
 
   test("should sign message hashes and return NEAR MPC format", () => {
-    const secretKey = OmniKey.random()
-    const publicOnlyKey = OmniKey.fromNEAR(TEST_FIXTURES.NEAR_PUBLIC_KEY)
+    const secretKey = MockMPCKey.random()
+    const publicOnlyKey = MPCKey.fromNEAR(TEST_FIXTURES.NEAR_PUBLIC_KEY)
     const messageHash = new Uint8Array(32).fill(42) // Simple test hash
 
     // Should work for keys with secret
@@ -209,12 +207,12 @@ describe("OmniKey - Secret Key Mode (Testing)", () => {
     expect(signature.recovery).toBeGreaterThanOrEqual(0)
     expect(signature.recovery).toBeLessThanOrEqual(3)
 
-    // Should throw for public-only keys
-    expect(() => publicOnlyKey.sign(messageHash)).toThrow("Cannot sign - no secret key available")
+    // Should not have sign method for MPCKey
+    expect("sign" in publicOnlyKey).toBe(false)
   })
 
   test("should produce deterministic signatures", () => {
-    const secretKey = OmniKey.fromSecret(
+    const secretKey = MockMPCKey.fromSecret(
       "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
     )
     const messageHash = new Uint8Array(32).fill(123)
@@ -231,7 +229,7 @@ describe("OmniKey - Secret Key Mode (Testing)", () => {
 
 describe("Cross-compatibility", () => {
   test("secret key derivation should match public key derivation", () => {
-    const rootSecret = OmniKey.random()
+    const rootSecret = MockMPCKey.random()
     const rootPublic = rootSecret
 
     const testPaths = ["ethereum-1", "bitcoin-1", "test/path", "some.other.path"]
@@ -250,7 +248,7 @@ describe("Cross-compatibility", () => {
 
   test("cryptographic consistency: derived_secret × G = derived_public", () => {
     // This is the fundamental test - verifies the math is correct
-    const rootSecret = OmniKey.random()
+    const rootSecret = MockMPCKey.random()
 
     const testCases = [
       { account: "alice.near", path: "ethereum-1" },
@@ -265,7 +263,7 @@ describe("Cross-compatibility", () => {
       const derivedSecret = childWithSecret.secretKey
 
       // Calculate what the public key should be: derivedSecret × G
-      const expectedPublicKey = OmniKey.fromSecret(derivedSecret)
+      const expectedPublicKey = MockMPCKey.fromSecret(derivedSecret)
 
       // Verify they match
       expect(childWithSecret.publicKey.equals(expectedPublicKey.publicKey)).toBe(true)

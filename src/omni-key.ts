@@ -15,16 +15,13 @@ const TWEAK_DERIVATION_PREFIX = "near-mpc-recovery v0.1.0 epsilon derivation:"
 const ACCOUNT_DATA_SEPARATOR = ","
 
 /**
- * Universal secp256k1 key for NEAR Chain Signatures
- * Supports both production (public-only) and testing (with secret) modes
+ * Production secp256k1 key for NEAR Chain Signatures (MPC)
+ * Public key only - used for address derivation and transaction construction
  */
-export class OmniKey {
-  constructor(
-    readonly publicKey: ProjPointType<bigint>,
-    private readonly _secretKey?: bigint,
-  ) {}
+export class MPCKey {
+  constructor(readonly publicKey: ProjPointType<bigint>) {}
 
-  static fromNEAR(nearPublicKey: string): OmniKey {
+  static fromNEAR(nearPublicKey: string): MPCKey {
     if (!nearPublicKey.startsWith(SECP256K1_PREFIX)) {
       throw new Error("Must start with 'secp256k1:'")
     }
@@ -39,38 +36,24 @@ export class OmniKey {
     }
 
     const publicKey = secp256k1.Point.fromBytes(new Uint8Array([0x04, ...decoded]))
-    return new OmniKey(publicKey)
+    return new MPCKey(publicKey)
   }
 
-  static fromPoint(publicKey: ProjPointType<bigint>): OmniKey {
-    return new OmniKey(publicKey)
+  static fromPoint(publicKey: ProjPointType<bigint>): MPCKey {
+    return new MPCKey(publicKey)
   }
 
-  static fromBytes(bytes: Uint8Array): OmniKey {
+  static fromBytes(bytes: Uint8Array): MPCKey {
     if (bytes.length === 64) {
       const publicKey = secp256k1.Point.fromBytes(new Uint8Array([0x04, ...bytes]))
-      return new OmniKey(publicKey)
+      return new MPCKey(publicKey)
     }
     const publicKey = secp256k1.Point.fromBytes(bytes)
-    return new OmniKey(publicKey)
-  }
-
-  // Testing constructors
-  static fromSecret(secretKey: bigint | string | Uint8Array): OmniKey {
-    const cleanedKey =
-      typeof secretKey === "string" && secretKey.startsWith("0x") ? secretKey.slice(2) : secretKey
-    const secretKeyScalar = secp256k1.utils.normPrivateKeyToScalar(cleanedKey)
-    const publicKey = secp256k1.Point.BASE.multiply(secretKeyScalar)
-    return new OmniKey(publicKey, secretKeyScalar)
-  }
-
-  static random(): OmniKey {
-    const randomBytes = secp256k1.utils.randomPrivateKey()
-    return OmniKey.fromSecret(randomBytes)
+    return new MPCKey(publicKey)
   }
 
   // NEAR MPC additive key derivation
-  derive(predecessorId: string, path: string): OmniKey {
+  derive(predecessorId: string, path: string): MPCKey {
     const derivationPath = `${TWEAK_DERIVATION_PREFIX}${predecessorId}${ACCOUNT_DATA_SEPARATOR}${path}`
     const hash = sha3_256(new TextEncoder().encode(derivationPath))
 
@@ -83,10 +66,8 @@ export class OmniKey {
 
     const epsilonPoint = secp256k1.Point.BASE.multiply(epsilon)
     const childPublicKey = this.publicKey.add(epsilonPoint)
-    const childSecretKey =
-      this._secretKey !== undefined ? mod(epsilon + this._secretKey, secp256k1.CURVE.n) : undefined
 
-    return new OmniKey(childPublicKey, childSecretKey)
+    return new MPCKey(childPublicKey)
   }
 
   // Address getters
@@ -128,35 +109,73 @@ export class OmniKey {
     return this.publicKey.toHex(false)
   }
 
-  // Secret key access (testing only)
-  canSign(): boolean {
-    return this._secretKey !== undefined
+  toString(): string {
+    return `MPCKey(${this.hex.slice(0, 16)}...)`
+  }
+}
+
+/**
+ * Testing secp256k1 key for NEAR Chain Signatures (MPC)
+ * Includes secret key for local signing - used for testing without MPC network calls
+ */
+export class MockMPCKey extends MPCKey {
+  constructor(
+    publicKey: ProjPointType<bigint>,
+    private readonly _secretKey: bigint,
+  ) {
+    super(publicKey)
   }
 
-  get secretKey(): bigint {
-    if (this._secretKey === undefined) {
-      throw new Error("No secret key available - key was created from public key only")
+  static fromSecret(secretKey: bigint | string | Uint8Array): MockMPCKey {
+    const cleanedKey =
+      typeof secretKey === "string" && secretKey.startsWith("0x") ? secretKey.slice(2) : secretKey
+    const secretKeyScalar = secp256k1.utils.normPrivateKeyToScalar(cleanedKey)
+    const publicKey = secp256k1.Point.BASE.multiply(secretKeyScalar)
+    return new MockMPCKey(publicKey, secretKeyScalar)
+  }
+
+  static random(): MockMPCKey {
+    const randomBytes = secp256k1.utils.randomPrivateKey()
+    return MockMPCKey.fromSecret(randomBytes)
+  }
+
+  // Override derive to return MockMPCKey with derived secret
+  override derive(predecessorId: string, path: string): MockMPCKey {
+    const derivationPath = `${TWEAK_DERIVATION_PREFIX}${predecessorId}${ACCOUNT_DATA_SEPARATOR}${path}`
+    const hash = sha3_256(new TextEncoder().encode(derivationPath))
+
+    let epsilon: bigint
+    try {
+      epsilon = secp256k1.CURVE.Fp.create(bytesToNumberBE(hash))
+    } catch (error) {
+      throw new Error(`Derived epsilon is not a valid scalar: ${error}`)
     }
+
+    const epsilonPoint = secp256k1.Point.BASE.multiply(epsilon)
+    const childPublicKey = this.publicKey.add(epsilonPoint)
+    const childSecretKey = mod(epsilon + this._secretKey, secp256k1.CURVE.n)
+
+    return new MockMPCKey(childPublicKey, childSecretKey)
+  }
+
+  // Secret key access
+  get secretKey(): bigint {
     return this._secretKey
   }
 
   get secretBytes(): Uint8Array {
-    return numberToBytesBE(this.secretKey, 32)
+    return numberToBytesBE(this._secretKey, 32)
   }
 
   get secretHex(): string {
-    return bytesToHex(numberToBytesBE(this.secretKey, 32))
+    return bytesToHex(numberToBytesBE(this._secretKey, 32))
   }
 
   sign(messageHash: Uint8Array): RecoveredSignatureType {
-    if (!this.canSign()) {
-      throw new Error("Cannot sign - no secret key available")
-    }
-    return secp256k1.sign(messageHash, this.secretKey)
+    return secp256k1.sign(messageHash, this._secretKey)
   }
 
-  toString(): string {
-    const mode = this.canSign() ? "with-secret" : "public-only"
-    return `OmniKey(${this.hex.slice(0, 16)}..., ${mode})`
+  override toString(): string {
+    return `MockMPCKey(${this.hex.slice(0, 16)}..., with-secret)`
   }
 }
