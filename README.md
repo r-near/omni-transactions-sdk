@@ -8,8 +8,8 @@ NEAR Chain Signatures allows any NEAR account to sign transactions for multiple 
 
 This SDK provides:
 - ✅ **Universal key derivation** - Generate addresses for multiple blockchains from a NEAR account
+- ✅ **MPC integration** - Submit transactions to NEAR's MPC network for signing
 - ✅ **Testing utilities** - Local secret key implementation for development and testing
-- 🚧 **MPC integration** - Submit transactions to NEAR's MPC network for signing *(coming soon)*
 - 🚧 **Library adapters** - Work with popular libraries like viem, web3.js *(coming soon)*
 
 ## Quick Start
@@ -25,10 +25,11 @@ npm install omni-transactions-sdk
 ### Basic Usage
 
 ```typescript
-import { OmniKey } from 'omni-transactions-sdk'
+import { MPCKey, Contract } from 'omni-transactions-sdk'
+import { connect } from '@near-js/client'
 
 // Production: Create from NEAR public key (from MPC network)
-const key = OmniKey.fromNEAR(
+const key = MPCKey.fromNEAR(
   "secp256k1:3tFRbMqmoa6AAALMrEFAYCEoHcqKxeW38YptwowBVBtXK1vo36HDbUWuR6EZmoK4JcH6HDkNMGGqP1ouV7VZUWya"
 )
 
@@ -43,23 +44,45 @@ const btcKey = key.derive("alice.near", "bitcoin-1")
 
 console.log("Ethereum child:", ethKey.ethereum)  // 0xa2869d3977dea9afc9b9c069491ac08f06f9e458
 console.log("Bitcoin child:", btcKey.bitcoin)    // bc1q96j504ke29e7ttnh0wkhnhr5qpj8alexu6h0gc
+
+// MPC signing for transactions
+import { Account } from "@near-js/accounts"
+import { getSignerFromKeystore } from "@near-js/client"
+import { UnencryptedFileSystemKeyStore } from "@near-js/keystores-node"
+import { JsonRpcProvider } from "@near-js/providers"
+
+const keyStore = new UnencryptedFileSystemKeyStore("~/.near-credentials")
+const provider = new JsonRpcProvider({ url: "https://rpc.testnet.near.org" })
+const signer = await getSignerFromKeystore("your-account.testnet", "testnet", keyStore)
+const account = new Account("your-account.testnet", provider, signer)
+
+const contract = new Contract(account, { networkId: "testnet", provider })
+
+// Sign a transaction hash with MPC network
+const messageHash = "0x1234567890abcdef..." // 32-byte hex hash
+const signature = await contract.sign("ethereum-1", messageHash, "ecdsa")
+console.log("MPC signature:", signature)
 ```
 
 ### Testing with Secret Keys
 
 ```typescript
-// Testing: Create with secret key for local development
-const testKey = OmniKey.random()
-// or
-const testKey = OmniKey.fromSecretHex("0x1234...")
+import { MockMPCKey } from 'omni-transactions-sdk'
 
-// Check if key can sign (has secret key)
-console.log("Can sign:", testKey.canSign())  // true
+// Testing: Create with secret key for local development
+const testKey = MockMPCKey.random()
+// or
+const testKey = MockMPCKey.fromSecret("0x1234...")
 
 // Derive child keys (both public and secret)
 const childKey = testKey.derive("test.near", "test-path")
-console.log("Child can sign:", childKey.canSign())  // true
 console.log("Child Ethereum:", childKey.ethereum)
+console.log("Child secret:", childKey.secretHex)
+
+// Local signing for testing
+const messageHash = new Uint8Array(32) // Your message hash
+const signature = childKey.sign(messageHash)
+console.log("Local signature:", signature)
 ```
 
 ## Background: NEAR Chain Signatures
@@ -161,37 +184,21 @@ childSecret × G === childPublic ✅
 
 ## API Reference
 
-### OmniKey Class
+### MPCKey Class
 
-The unified class for handling both production (public-key-only) and testing (with-secret-key) scenarios.
+Production class for handling public-key-only operations with NEAR Chain Signatures.
 
 #### Static Constructors
 
-**Production (Public Key Only):**
 ```typescript
 // From NEAR protocol format
-OmniKey.fromNEAR(nearPublicKey: string): OmniKey
+MPCKey.fromNEAR(nearPublicKey: string): MPCKey
 
 // From raw public key point  
-OmniKey.fromPoint(point: ProjPointType<bigint>): OmniKey
+MPCKey.fromPoint(point: ProjPointType<bigint>): MPCKey
 
 // From uncompressed bytes (64 bytes)
-OmniKey.fromBytes(bytes: Uint8Array): OmniKey
-```
-
-**Testing (With Secret Key):**
-```typescript
-// Generate random key pair
-OmniKey.random(): OmniKey
-
-// From secret key scalar
-OmniKey.fromSecretKey(scalar: bigint): OmniKey
-
-// From 32-byte secret key
-OmniKey.fromSecretBytes(bytes: Uint8Array): OmniKey
-
-// From hex string (with or without 0x)
-OmniKey.fromSecretHex(hex: string): OmniKey
+MPCKey.fromBytes(bytes: Uint8Array): MPCKey
 ```
 
 #### Instance Methods
@@ -199,7 +206,7 @@ OmniKey.fromSecretHex(hex: string): OmniKey
 **Key Derivation:**
 ```typescript
 // Derive child key using NEAR MPC scheme
-derive(predecessorId: string, path: string): OmniKey
+derive(predecessorId: string, path: string): MPCKey
 ```
 
 **Address Generation:**
@@ -213,24 +220,70 @@ get near(): string          // secp256k1:... (NEAR protocol format)
 
 **Public Key Access:**
 ```typescript
-get rawPoint(): ProjPointType<bigint>  // Raw secp256k1 point
-get bytes(): Uint8Array                // Uncompressed (65 bytes)
-get compressed(): Uint8Array           // Compressed (33 bytes)
-get hex(): string                      // Hex representation
+get publicKey(): ProjPointType<bigint>  // Raw secp256k1 point
+get bytes(): Uint8Array                 // Uncompressed (65 bytes)
+get compressed(): Uint8Array            // Compressed (33 bytes)
+get hex(): string                       // Hex representation
 ```
 
-**Secret Key Access (Testing Only):**
+### MockMPCKey Class
+
+Testing class that extends MPCKey with secret key capabilities for local development.
+
+#### Static Constructors
+
 ```typescript
-canSign(): boolean           // Check if secret key available
-get secretKey(): bigint      // Raw secret scalar (throws if none)
+// Generate random key pair
+MockMPCKey.random(): MockMPCKey
+
+// From secret key scalar, string, or bytes
+MockMPCKey.fromSecret(secret: bigint | string | Uint8Array): MockMPCKey
+```
+
+#### Additional Methods
+
+**Secret Key Access:**
+```typescript
+get secretKey(): bigint      // Raw secret scalar
 get secretBytes(): Uint8Array // 32-byte secret key
 get secretHex(): string      // Hex representation
 ```
 
-**Utilities:**
+**Local Signing:**
 ```typescript
-equals(other: OmniKey): boolean  // Compare public keys
-toString(): string               // Debug representation
+sign(messageHash: Uint8Array): RecoveredSignatureType
+```
+
+**Enhanced Derivation:**
+```typescript
+// Override to return MockMPCKey with derived secret
+derive(predecessorId: string, path: string): MockMPCKey
+```
+
+### Contract Class
+
+Interface for interacting with NEAR's MPC smart contract.
+
+#### Constructor
+
+```typescript
+new Contract(account: Account, config: ContractConfig)
+```
+
+#### Methods
+
+```typescript
+// Get root public key from MPC contract
+getPublicKey(): Promise<string>
+
+// Get derived public key
+getDerivedPublicKey(predecessor: string, path: string, domainId?: number): Promise<string>
+
+// Get latest key version
+getLatestKeyVersion(): Promise<number>
+
+// Sign message or hash using MPC network
+sign(path: string, message: string, signatureType?: "ecdsa" | "eddsa", domainId?: number): Promise<MPCSignature>
 ```
 
 ## Examples
@@ -238,14 +291,14 @@ toString(): string               // Debug representation
 ### Multi-Chain Wallet
 
 ```typescript
-import { OmniKey } from 'omni-transactions-sdk'
+import { MPCKey } from 'omni-transactions-sdk'
 
 class MultiChainWallet {
   constructor(private nearPublicKey: string) {}
   
   // Generate addresses for a specific purpose
   getAddresses(purpose: string) {
-    const key = OmniKey.fromNEAR(this.nearPublicKey)
+    const key = MPCKey.fromNEAR(this.nearPublicKey)
     const derived = key.derive("wallet.near", purpose)
     
     return {
@@ -278,13 +331,13 @@ console.log(wallet.getTradingAddresses())
 ### Testing Framework Integration
 
 ```typescript
-import { OmniKey } from 'omni-transactions-sdk'
-import { describe, test, expect } from 'vitest'
+import { MockMPCKey } from 'omni-transactions-sdk'
+import { describe, test, expect } from 'bun:test'
 
 describe('Cross-chain integration', () => {
   test('should derive consistent addresses', () => {
     // Use deterministic test key
-    const testKey = OmniKey.fromSecretHex("0x1234567890abcdef...")
+    const testKey = MockMPCKey.fromSecret("0x1234567890abcdef...")
     
     const ethKey = testKey.derive("test.near", "ethereum-test")
     const btcKey = testKey.derive("test.near", "bitcoin-test")
@@ -294,8 +347,8 @@ describe('Cross-chain integration', () => {
     expect(btcKey.bitcoin).toBe("bc1...")
     
     // Verify cryptographic consistency
-    const recomputedEth = OmniKey.fromSecretKey(ethKey.secretKey)
-    expect(ethKey.equals(recomputedEth)).toBe(true)
+    const recomputedEth = MockMPCKey.fromSecret(ethKey.secretKey)
+    expect(ethKey.publicKey.equals(recomputedEth.publicKey)).toBe(true)
   })
 })
 ```
@@ -303,14 +356,14 @@ describe('Cross-chain integration', () => {
 ### Bridge Application
 
 ```typescript
-import { OmniKey } from 'omni-transactions-sdk'
+import { MPCKey } from 'omni-transactions-sdk'
 
 class CrossChainBridge {
   constructor(private nearAccount: string, private rootKey: string) {}
   
   // Generate deposit addresses for users
   generateDepositAddress(userId: string, sourceChain: string) {
-    const key = OmniKey.fromNEAR(this.rootKey)
+    const key = MPCKey.fromNEAR(this.rootKey)
     const userKey = key.derive(this.nearAccount, `bridge/${userId}/${sourceChain}`)
     
     switch (sourceChain) {
@@ -346,7 +399,8 @@ bun install
 ### Running Tests
 
 ```bash
-bun test          # Run all tests
+bun test          # Run unit tests
+bun test:all      # Run all tests (unit + integration)
 bun run typecheck # TypeScript type checking
 bun run lint      # Code linting and formatting
 ```
@@ -360,9 +414,9 @@ bun run build     # Compile TypeScript
 ## Roadmap
 
 - ✅ **Phase 1.1**: Universal key derivation and address generation
-- 🚧 **Phase 1.2**: NEAR MPC integration for transaction signing
+- ✅ **Phase 1.2**: NEAR MPC integration for transaction signing
+- ✅ **Phase 1.4**: Testing infrastructure and mock MPC signer
 - 🚧 **Phase 1.3**: Viem adapter for Ethereum transactions
-- 🚧 **Phase 1.4**: Testing infrastructure and mock MPC signer
 - 🚧 **Phase 2**: Bitcoin transaction support
 - 🚧 **Phase 3**: Additional chains (Solana) and wallet integrations
 
@@ -375,7 +429,7 @@ This SDK uses audited cryptographic libraries:
 - **[@noble/hashes](https://github.com/paulmillr/noble-hashes)** - Cryptographic hash functions
 - **[@scure/btc-signer](https://github.com/paulmillr/scure-btc-signer)** - Bitcoin address generation
 
-⚠️ **Important**: The `OmniSecretKey` functionality is for testing only. In production, secret keys are managed by NEAR's MPC network and never exposed.
+⚠️ **Important**: The `MockMPCKey` functionality is for testing only. In production, secret keys are managed by NEAR's MPC network and never exposed.
 
 ## Contributing
 

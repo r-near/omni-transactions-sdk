@@ -61,7 +61,3 @@ describe("Contract constants", () => {
     expect(DEFAULT_CONTRACT_IDS.testnet).toBe("v1.signer-prod.testnet")
   })
 })
-
-// Note: Integration tests with actual Contract instances will require
-// setting up NEAR accounts and providers, which we'll do separately
-// in the experiments directory

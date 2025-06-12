@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { MPCKey, MockMPCKey } from "../../src/omni-key.js"
+import { MPCKey, MockMPCKey } from "../../src/mpc-key.js"
 
 // Test fixtures with expected addresses for verification
 const TEST_FIXTURES = {
