@@ -4,7 +4,12 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "test": "bun test",
+    "test": "bun test tests/unit/",
+    "test:unit": "bun test tests/unit/",
+    "test:integration": "bun test tests/integration/",
+    "test:all": "bun test",
+    "test:watch": "bun test --watch tests/unit/",
+    "test:ci": "bun test --coverage",
     "lint": "biome check --write .",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "bun build",
@@ -24,6 +29,13 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@near-js/accounts": "^2.0.3",
+    "@near-js/client": "^2.0.3",
+    "@near-js/crypto": "^2.0.3",
+    "@near-js/keystores": "^2.0.3",
+    "@near-js/keystores-node": "^2.0.3",
+    "@near-js/providers": "^2.0.3",
+    "@near-js/utils": "^2.0.3",
     "@noble/curves": "^1.9.2",
     "@noble/hashes": "^1.8.0",
     "@scure/base": "^1.2.6",

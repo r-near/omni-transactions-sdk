@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { OmniKey } from "../src/omni-key.js"
+import { MPCKey } from "../../src/omni-key.js"
 
 // FastNEAR view-only RPC API endpoints (using mainnet MPC for testing)
 const FASTNEAR_BASE_URL = "https://rpc.web4.near.page/account/v1.signer/view"
@@ -35,8 +35,8 @@ describe("NEAR MPC Integration Tests", () => {
     expect(typeof mpcRootKey).toBe("string")
     expect(mpcRootKey).toMatch(/^secp256k1:/)
 
-    // Should be able to create OmniKey from MPC root key
-    const omniKey = OmniKey.fromNEAR(mpcRootKey)
+    // Should be able to create MPCKey from MPC root key
+    const omniKey = MPCKey.fromNEAR(mpcRootKey)
     expect(omniKey).toBeDefined()
     expect(omniKey.near).toBe(mpcRootKey)
   })
@@ -49,8 +49,8 @@ describe("NEAR MPC Integration Tests", () => {
       expect(typeof mpcDerivedKey).toBe("string")
       expect(mpcDerivedKey).toMatch(/^secp256k1:/)
 
-      // Should be able to create OmniKey from derived key
-      const omniKey = OmniKey.fromNEAR(mpcDerivedKey)
+      // Should be able to create MPCKey from derived key
+      const omniKey = MPCKey.fromNEAR(mpcDerivedKey)
       expect(omniKey).toBeDefined()
       expect(omniKey.near).toBe(mpcDerivedKey)
     }
@@ -60,8 +60,8 @@ describe("NEAR MPC Integration Tests", () => {
     // Get root key from MPC
     const mpcRootKey = await fetchMpcPublicKey()
 
-    // Create local OmniKey from MPC root
-    const localRootKey = OmniKey.fromNEAR(mpcRootKey)
+    // Create local MPCKey from MPC root
+    const localRootKey = MPCKey.fromNEAR(mpcRootKey)
 
     // Test each derivation path
     for (const path of TEST_CASES.PATHS) {
@@ -75,16 +75,16 @@ describe("NEAR MPC Integration Tests", () => {
       expect(localDerivedKey.near).toBe(mpcDerivedKey)
 
       // Also verify other address formats match
-      const mpcDerivedOmniKey = OmniKey.fromNEAR(mpcDerivedKey)
-      expect(localDerivedKey.ethereum).toBe(mpcDerivedOmniKey.ethereum)
-      expect(localDerivedKey.bitcoinBech32).toBe(mpcDerivedOmniKey.bitcoinBech32)
-      expect(localDerivedKey.bitcoinP2PKH).toBe(mpcDerivedOmniKey.bitcoinP2PKH)
+      const mpcDerivedMPCKey = MPCKey.fromNEAR(mpcDerivedKey)
+      expect(localDerivedKey.ethereum).toBe(mpcDerivedMPCKey.ethereum)
+      expect(localDerivedKey.bitcoinBech32).toBe(mpcDerivedMPCKey.bitcoinBech32)
+      expect(localDerivedKey.bitcoinP2PKH).toBe(mpcDerivedMPCKey.bitcoinP2PKH)
     }
   })
 
   test("should handle different predecessor IDs consistently", async () => {
     const mpcRootKey = await fetchMpcPublicKey()
-    const localRootKey = OmniKey.fromNEAR(mpcRootKey)
+    const localRootKey = MPCKey.fromNEAR(mpcRootKey)
     const testPredecessors = ["alice.near", "bob.near", "test.testnet"]
     const testPath = "ethereum-1"
 
