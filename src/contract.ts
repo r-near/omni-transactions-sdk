@@ -6,6 +6,7 @@
  */
 
 import type { Account } from "@near-js/accounts"
+import type { Provider } from "@near-js/providers"
 import { bytesToNumberBE, hexToBytes } from "@noble/curves/abstract/utils"
 import { secp256k1 } from "@noble/curves/secp256k1"
 import {
@@ -43,10 +44,16 @@ export const DEFAULT_CONTRACT_IDS = {
  */
 export class Contract {
   private readonly account: Account
+  private readonly provider: Provider
   private readonly contractId: string
 
   constructor(account: Account, config: ContractConfig) {
     this.account = account
+    // Get provider from config (required for view calls)
+    this.provider = config.provider
+    if (!this.provider) {
+      throw new Error("Provider is required in config for view calls")
+    }
     this.contractId = config.contractId ?? DEFAULT_CONTRACT_IDS[config.networkId]
   }
 
@@ -54,21 +61,17 @@ export class Contract {
    * Get the root public key from the MPC contract
    */
   async getPublicKey(): Promise<string> {
-    return (await this.account.viewFunction({
-      contractId: this.contractId,
-      methodName: "public_key",
-      args: {},
-    })) as string
+    return (await this.provider.callFunction(this.contractId, "public_key", {})) as string
   }
 
   /**
    * Get a derived public key for the given predecessor and path
    */
   async getDerivedPublicKey(predecessor: string, path: string, domainId = 0): Promise<string> {
-    return (await this.account.viewFunction({
-      contractId: this.contractId,
-      methodName: "derived_public_key",
-      args: { predecessor, path, domain_id: domainId },
+    return (await this.provider.callFunction(this.contractId, "derived_public_key", {
+      predecessor,
+      path,
+      domain_id: domainId,
     })) as string
   }
 
@@ -76,11 +79,7 @@ export class Contract {
    * Get the latest key version (domain ID)
    */
   async getLatestKeyVersion(): Promise<number> {
-    return (await this.account.viewFunction({
-      contractId: this.contractId,
-      methodName: "latest_key_version",
-      args: {},
-    })) as number
+    return (await this.provider.callFunction(this.contractId, "latest_key_version", {})) as number
   }
 
   /**
@@ -91,11 +90,7 @@ export class Contract {
 
     try {
       // Test domain 0 (typically ECDSA/secp256k1)
-      await this.account.viewFunction({
-        contractId: this.contractId,
-        methodName: "public_key",
-        args: { domain_id: 0 },
-      })
+      await this.provider.callFunction(this.contractId, "public_key", { domain_id: 0 })
       support.ecdsa = true
     } catch {
       // Domain 0 not available
@@ -103,11 +98,7 @@ export class Contract {
 
     try {
       // Test domain 1 (typically EDDSA/Ed25519)
-      await this.account.viewFunction({
-        contractId: this.contractId,
-        methodName: "public_key",
-        args: { domain_id: 1 },
-      })
+      await this.provider.callFunction(this.contractId, "public_key", { domain_id: 1 })
       support.eddsa = true
     } catch {
       // Domain 1 not available

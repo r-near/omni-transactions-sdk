@@ -58,16 +58,14 @@ async function testMPCViewMethods(account: Account) {
   console.log("\n=== Testing MPC View Methods ===")
 
   try {
+    // Use Contract class for all view methods
+    const contract = new Contract(account, { networkId: "testnet", provider })
+
     // Test getting public key
-    const publicKey = await account.viewFunction({
-      contractId: MPC_CONTRACT_TESTNET,
-      methodName: "public_key",
-      args: {},
-    })
+    const publicKey = await contract.getPublicKey()
     console.log(`✓ MPC Public Key: ${publicKey}`)
 
     // Test getting derived public key for EDDSA path with domain_id 1
-    const contract = new Contract(account, { networkId: "testnet" })
     const derivedKeyEDDSA = await contract.getDerivedPublicKey(
       TEST_ACCOUNT_ID,
       TEST_PATH_EDDSA,
@@ -77,20 +75,14 @@ async function testMPCViewMethods(account: Account) {
       `✓ Derived Key for ${TEST_PATH_EDDSA} (domain ${TEST_DOMAIN_ID_EDDSA}): ${derivedKeyEDDSA}`,
     )
 
-    // Test domain_id 1 public key availability
-    const domain1PubKey = await account.viewFunction({
-      contractId: MPC_CONTRACT_TESTNET,
-      methodName: "public_key",
-      args: { domain_id: 1 },
-    })
-    console.log(`✓ Domain 1 Public Key: ${domain1PubKey}`)
+    // Test supported signature types
+    const supportedTypes = await contract.getSupportedSignatureTypes()
+    console.log(
+      `✓ Supported signature types: ECDSA=${supportedTypes.ecdsa}, EDDSA=${supportedTypes.eddsa}`,
+    )
 
     // Test getting latest key version
-    const keyVersion = await account.viewFunction({
-      contractId: MPC_CONTRACT_TESTNET,
-      methodName: "latest_key_version",
-      args: {},
-    })
+    const keyVersion = await contract.getLatestKeyVersion()
     console.log(`✓ Latest Key Version: ${keyVersion}`)
   } catch (error) {
     console.error("✗ View method failed:", (error as Error).message)
@@ -107,7 +99,7 @@ async function testMPCSignMethodEDDSA(account: Account) {
     console.log(`Account: ${TEST_ACCOUNT_ID}`)
 
     // Use our Contract class to make the signature request
-    const contract = new Contract(account, { networkId: "testnet" })
+    const contract = new Contract(account, { networkId: "testnet", provider })
 
     // Create the signature request
     const signRequest = Contract.createEDDSARequest(
@@ -137,7 +129,7 @@ async function testEDDSASignatureVerification(signature: MPCSignature, account: 
 
   try {
     // Use our Contract class to get the derived Ed25519 public key for domain 1
-    const contract = new Contract(account, { networkId: "testnet" })
+    const contract = new Contract(account, { networkId: "testnet", provider })
     const derivedPubKeyDomain1 = await contract.getDerivedPublicKey(
       TEST_ACCOUNT_ID,
       TEST_PATH_EDDSA,
