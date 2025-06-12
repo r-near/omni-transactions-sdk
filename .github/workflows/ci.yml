@@ -29,7 +29,7 @@ jobs:
       run: bun run typecheck
       
     - name: Run unit tests
-      run: bun test tests/*.test.ts
+      run: bun test tests/unit/
       
     - name: Build project
       run: bun run build

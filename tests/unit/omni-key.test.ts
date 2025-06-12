@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { OmniKey } from "../src/omni-key.js"
+import { OmniKey } from "../../src/omni-key.js"
 
 // Test fixtures with expected addresses for verification
 const TEST_FIXTURES = {

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { ECDSAHashSchema, EDDSAMessageSchema, PathSchema, PayloadSchema } from "./contract-types.js"
-import { DEFAULT_CONTRACT_IDS } from "./contract.js"
+import { DEFAULT_CONTRACT_IDS } from "../../src/contract.js"
+import { ECDSAHashSchema, EDDSAMessageSchema, PathSchema, PayloadSchema } from "../../src/types.js"
 
 describe("Zod schema validation", () => {
   test("ECDSAHashSchema validates 32-byte hex strings", () => {

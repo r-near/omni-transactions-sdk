@@ -15,7 +15,7 @@ import {
   EDDSAMessageSchema,
   type MPCSignatureResponse,
   MPCSignatureResponseSchema,
-} from "./contract-types.js"
+} from "./types.js"
 
 /**
  * Union type for all supported signature types
@@ -119,12 +119,12 @@ export class Contract {
     }
 
     // Make the signature request
-    const result = await this.account.functionCall({
+    const result = await this.account.callFunction({
       contractId: this.contractId,
       methodName: "sign",
       args: mpcRequest,
-      gas: 300000000000000n, // 300 TGas
-      attachedDeposit: 1n, // Required 1 yoctoNEAR deposit
+      gas: 10000000000000n, // 10 TGas
+      deposit: 1n, // Required 1 yoctoNEAR deposit
     })
 
     // Parse and convert the response

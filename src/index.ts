@@ -15,8 +15,7 @@ export {
   SignRequestArgsSchema,
   MPCSignatureResponseSchema,
   ContractConfigSchema,
-} from "./contract-types.js"
+} from "./types.js"
 
 export type * from "./types.js"
 export type * from "./contract.js"
-export type * from "./contract-types.js"
