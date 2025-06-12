@@ -27,7 +27,7 @@ npm install omni-transactions-sdk
 ```typescript
 import { MPCKey, Contract, SignatureType } from 'omni-transactions-sdk'
 import { Account } from "@near-js/accounts"
-import { InMemorySigner } from "@near-js/signers"
+import { KeyPairSigner } from "@near-js/signers"
 import { JsonRpcProvider } from "@near-js/providers"
 
 // Step 1: Start with MPC root public key (obtained from MPC contract)
@@ -50,7 +50,7 @@ console.log("Custom path address:", customKey.ethereum)
 
 // Step 4: Sign transactions using MPC network
 const provider = new JsonRpcProvider({ url: "https://rpc.testnet.near.org" })
-const signer = new InMemorySigner("your-private-key") // In practice, use secure key management
+const signer = KeyPairSigner.fromSecretKey("your-private-key") // In practice, use secure key management
 const account = new Account(callerAccountId, provider, signer)
 const contract = new Contract(account, { networkId: "testnet", provider })
 
@@ -124,30 +124,24 @@ Unlike BIP32's multiplicative derivation, NEAR uses **additive derivation** whic
 Given a parent key and derivation parameters:
 
 1. **Derivation tweak**: 
-   ```
-   ε = SHA3-256("near-mpc-recovery v0.1.0 epsilon derivation:" + account + "," + path)
-   ```
+   $$\varepsilon = \text{SHA3-256}(\text{"near-mpc-recovery v0.1.0 epsilon derivation:"} + \text{account} + \text{","} + \text{path})$$
 
 2. **Child secret key** (MPC network):
-   ```
-   child_secret = (ε + parent_secret) mod n
-   ```
+   $$s_{\text{child}} = (\varepsilon + s_{\text{parent}}) \bmod n$$
 
 3. **Child public key** (anyone can compute):
-   ```
-   child_public = ε × G + parent_public
-   ```
+   $$P_{\text{child}} = \varepsilon \cdot G + P_{\text{parent}}$$
 
 #### Cryptographic Consistency
 
 The key insight is that these formulas are mathematically equivalent:
 
-```
-child_secret × G = (ε + parent_secret) × G 
-                 = ε × G + parent_secret × G 
-                 = ε × G + parent_public 
-                 = child_public ✅
-```
+$$\begin{align}
+s_{\text{child}} \cdot G &= (\varepsilon + s_{\text{parent}}) \cdot G \\
+&= \varepsilon \cdot G + s_{\text{parent}} \cdot G \\
+&= \varepsilon \cdot G + P_{\text{parent}} \\
+&= P_{\text{child}} \quad \checkmark
+\end{align}$$
 
 This ensures that:
 - The MPC network can derive child secret keys
@@ -165,15 +159,19 @@ const parentSecret = 0x1234... // Only MPC network knows this
 
 // Anyone can compute:
 const derivationString = "near-mpc-recovery v0.1.0 epsilon derivation:alice.near,ethereum-1"
-const ε = SHA3-256(derivationString)
-const childPublic = ε × G + parentPublic
-
-// Only MPC network can compute:
-const childSecret = (ε + parentSecret) mod n
-
-// Mathematical guarantee:
-childSecret × G === childPublic ✅
 ```
+$$\varepsilon = \text{SHA3-256}(\text{derivationString})$$
+$$P_{\text{child}} = \varepsilon \cdot G + P_{\text{parent}}$$
+
+```typescript
+// Only MPC network can compute:
+```
+$$s_{\text{child}} = (\varepsilon + s_{\text{parent}}) \bmod n$$
+
+```typescript
+// Mathematical guarantee:
+```
+$$s_{\text{child}} \cdot G \equiv P_{\text{child}} \quad \checkmark$$
 
 ### Security Properties
 

@@ -109,24 +109,24 @@ export enum SignatureType {
 **Description**: Create a TypeScript experiment file to validate that the Basic Usage example in README actually works and compiles correctly.
 
 **Sub-tasks:**
-- [ ] Create `experiments/basic-usage-validation.ts` file
-- [ ] Copy the Basic Usage example from README into the experiment
-- [ ] Ensure all imports are correct and types resolve
-- [ ] Add comments explaining what each step does
-- [ ] Verify the example compiles without errors
-- [ ] Consider adding simple assertions or console logs for clarity
+- [x] Create `experiments/basic-usage-validation.ts` file
+- [x] Copy the Basic Usage example from README into the experiment
+- [x] Ensure all imports are correct and types resolve
+- [x] Add comments explaining what each step does
+- [x] Verify the example compiles without errors
+- [x] Add comprehensive validation functions and console logs for clarity
 
 ### 7. Improve Mathematical Notation in README
 **Priority: Low**  
 **Description**: Convert mathematical formulas in the README to use proper LaTeX formatting for better readability.
 
 **Sub-tasks:**
-- [ ] Convert derivation tweak formula to LaTeX
-- [ ] Convert child secret key formula to LaTeX  
-- [ ] Convert child public key formula to LaTeX
-- [ ] Convert cryptographic consistency proof to LaTeX
-- [ ] Add LaTeX rendering support instructions if needed
-- [ ] Ensure formulas are properly formatted in GitHub markdown
+- [x] Convert derivation tweak formula to LaTeX
+- [x] Convert child secret key formula to LaTeX  
+- [x] Convert child public key formula to LaTeX
+- [x] Convert cryptographic consistency proof to LaTeX
+- [x] Convert example calculation formulas to LaTeX
+- [x] Ensure formulas are properly formatted in GitHub markdown
 
 ## Progress Tracking
 
@@ -135,8 +135,8 @@ export enum SignatureType {
 - [x] Task 3: SignatureType Enum
 - [x] Task 4: Zod Validation Enhancement
 - [x] Task 5: Documentation Improvements
-- [ ] Task 6: Validate Basic Usage Example
-- [ ] Task 7: Improve Mathematical Notation
+- [x] Task 6: Validate Basic Usage Example
+- [x] Task 7: Improve Mathematical Notation
 
 ## Notes
 - No backward compatibility needed - we can change interfaces rapidly
