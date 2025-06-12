@@ -23,6 +23,6 @@ jobs:
       run: bun install --frozen-lockfile
       
     - name: Run integration tests
-      run: bun test tests/integration/
+      run: bun test tests/integration/ --timeout 30000
       env:
         NEAR_PRIVATE_KEY: ${{ secrets.NEAR_PRIVATE_KEY }}

@@ -7,6 +7,16 @@
 import type { Provider } from "@near-js/providers"
 import { z } from "zod/v4"
 
+// Enums for type safety
+
+/**
+ * Supported signature types for MPC contract
+ */
+export enum SignatureType {
+  ECDSA = "ecdsa",
+  EDDSA = "eddsa",
+}
+
 // Zod schemas for validation and type safety
 
 /**
@@ -52,9 +62,12 @@ export const PayloadSchema = z.union([
 export type Payload = z.infer<typeof PayloadSchema>
 
 /**
- * Derivation path (any non-empty string)
+ * Derivation path (any non-empty string that isn't just whitespace)
  */
-export const PathSchema = z.string().min(1)
+export const PathSchema = z
+  .string()
+  .min(1, "Path is required and cannot be empty")
+  .refine((val) => val.trim().length > 0, { message: "Path is required and cannot be empty" })
 export type Path = z.infer<typeof PathSchema>
 
 /**
@@ -130,3 +143,14 @@ export const ContractConfigSchema = z.object({
   provider: ProviderSchema,
 })
 export type ContractConfig = z.infer<typeof ContractConfigSchema>
+
+/**
+ * Schema for the new object-based sign request API
+ */
+export const SignRequestSchema = z.object({
+  path: PathSchema,
+  message: z.string().min(1, "Message is required and cannot be empty"),
+  signatureType: z.enum(SignatureType).default(SignatureType.ECDSA),
+  domainId: DomainIdSchema.optional(),
+})
+export type SignRequest = z.infer<typeof SignRequestSchema>

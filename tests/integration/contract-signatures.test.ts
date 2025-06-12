@@ -17,6 +17,7 @@ import { secp256k1 } from "@noble/curves/secp256k1"
 import { base58 } from "@scure/base"
 import { Contract, type MPCSignature } from "../../src/contract.js"
 import { MPCKey } from "../../src/mpc-key.js"
+import { SignatureType } from "../../src/types.js"
 
 // Test Configuration
 const TEST_CONFIG = {
@@ -219,7 +220,11 @@ describe("ECDSA (secp256k1) Signatures", () => {
   test(
     "should sign ECDSA hash with default parameters",
     async () => {
-      const signature = await testContract.sign(TEST_VECTORS.ecdsa.path, TEST_VECTORS.ecdsa.hash)
+      const signature = await testContract.sign({
+        path: TEST_VECTORS.ecdsa.path,
+        message: TEST_VECTORS.ecdsa.hash,
+        signatureType: SignatureType.ECDSA,
+      })
 
       expectValidECDSASignature(signature)
 
@@ -238,12 +243,12 @@ describe("ECDSA (secp256k1) Signatures", () => {
   test(
     "should sign ECDSA hash with explicit parameters",
     async () => {
-      const signature = await testContract.sign(
-        TEST_VECTORS.ecdsa.path,
-        TEST_VECTORS.ecdsa.hash,
-        "ecdsa",
-        0,
-      )
+      const signature = await testContract.sign({
+        path: TEST_VECTORS.ecdsa.path,
+        message: TEST_VECTORS.ecdsa.hash,
+        signatureType: SignatureType.ECDSA,
+        domainId: 0,
+      })
 
       expectValidECDSASignature(signature)
 
@@ -263,7 +268,11 @@ describe("ECDSA (secp256k1) Signatures", () => {
     "should produce cryptographically valid ECDSA signatures",
     async () => {
       const testPath = `ecdsa-verify-${Date.now()}`
-      const signature = await testContract.sign(testPath, TEST_VECTORS.ecdsa.hash, "ecdsa")
+      const signature = await testContract.sign({
+        path: testPath,
+        message: TEST_VECTORS.ecdsa.hash,
+        signatureType: SignatureType.ECDSA,
+      })
 
       expectValidECDSASignature(signature)
 
@@ -281,14 +290,38 @@ describe("ECDSA (secp256k1) Signatures", () => {
 
   test("should validate ECDSA hash format", async () => {
     // Invalid hex string
-    await expect(testContract.sign("test", "invalid")).rejects.toThrow()
+    await expect(
+      testContract.sign({
+        path: "test",
+        message: "invalid",
+        signatureType: SignatureType.ECDSA,
+      }),
+    ).rejects.toThrow()
 
     // Wrong length (not 32 bytes)
-    await expect(testContract.sign("test", "a0b1c2")).rejects.toThrow()
+    await expect(
+      testContract.sign({
+        path: "test",
+        message: "a0b1c2",
+        signatureType: SignatureType.ECDSA,
+      }),
+    ).rejects.toThrow()
 
     // Empty values
-    await expect(testContract.sign("", TEST_VECTORS.ecdsa.hash)).rejects.toThrow()
-    await expect(testContract.sign("test", "")).rejects.toThrow()
+    await expect(
+      testContract.sign({
+        path: "",
+        message: TEST_VECTORS.ecdsa.hash,
+        signatureType: SignatureType.ECDSA,
+      }),
+    ).rejects.toThrow()
+    await expect(
+      testContract.sign({
+        path: "test",
+        message: "",
+        signatureType: SignatureType.ECDSA,
+      }),
+    ).rejects.toThrow()
   })
 })
 
@@ -296,11 +329,11 @@ describe("EDDSA (Ed25519) Signatures", () => {
   test(
     "should sign EDDSA message with explicit type",
     async () => {
-      const signature = await testContract.sign(
-        TEST_VECTORS.eddsa.path,
-        TEST_VECTORS.eddsa.message,
-        "eddsa",
-      )
+      const signature = await testContract.sign({
+        path: TEST_VECTORS.eddsa.path,
+        message: TEST_VECTORS.eddsa.message,
+        signatureType: SignatureType.EDDSA,
+      })
 
       expectValidEDDSASignature(signature)
 
@@ -320,7 +353,11 @@ describe("EDDSA (Ed25519) Signatures", () => {
     "should auto-route EDDSA to domain 1",
     async () => {
       const testPath = `eddsa-domain-${Date.now()}`
-      const signature = await testContract.sign(testPath, TEST_VECTORS.eddsa.message, "eddsa")
+      const signature = await testContract.sign({
+        path: testPath,
+        message: TEST_VECTORS.eddsa.message,
+        signatureType: SignatureType.EDDSA,
+      })
 
       expectValidEDDSASignature(signature)
 
@@ -340,7 +377,11 @@ describe("EDDSA (Ed25519) Signatures", () => {
     "should produce cryptographically valid EDDSA signatures",
     async () => {
       const testPath = `eddsa-verify-${Date.now()}`
-      const signature = await testContract.sign(testPath, TEST_VECTORS.eddsa.message, "eddsa")
+      const signature = await testContract.sign({
+        path: testPath,
+        message: TEST_VECTORS.eddsa.message,
+        signatureType: SignatureType.EDDSA,
+      })
 
       expectValidEDDSASignature(signature)
 
@@ -358,14 +399,32 @@ describe("EDDSA (Ed25519) Signatures", () => {
 
   test("should validate EDDSA message format", async () => {
     // Invalid hex string
-    await expect(testContract.sign("test", "invalid_hex", "eddsa")).rejects.toThrow()
+    await expect(
+      testContract.sign({
+        path: "test",
+        message: "invalid_hex",
+        signatureType: SignatureType.EDDSA,
+      }),
+    ).rejects.toThrow()
 
     // Too short (< 32 bytes)
-    await expect(testContract.sign("test", "short", "eddsa")).rejects.toThrow()
+    await expect(
+      testContract.sign({
+        path: "test",
+        message: "short",
+        signatureType: SignatureType.EDDSA,
+      }),
+    ).rejects.toThrow()
 
     // Too long (> 1232 bytes) - 2464 hex chars
     const tooLongMessage = "a".repeat(2465)
-    await expect(testContract.sign("test", tooLongMessage, "eddsa")).rejects.toThrow()
+    await expect(
+      testContract.sign({
+        path: "test",
+        message: tooLongMessage,
+        signatureType: SignatureType.EDDSA,
+      }),
+    ).rejects.toThrow()
   })
 })
 
@@ -376,15 +435,19 @@ describe("Multi-Signature Support", () => {
       const sharedPath = `multi-sig-${Date.now()}`
 
       // Sign with ECDSA
-      const ecdsaSignature = await testContract.sign(sharedPath, TEST_VECTORS.ecdsa.hash, "ecdsa")
+      const ecdsaSignature = await testContract.sign({
+        path: sharedPath,
+        message: TEST_VECTORS.ecdsa.hash,
+        signatureType: SignatureType.ECDSA,
+      })
       expectValidECDSASignature(ecdsaSignature)
 
       // Sign with EDDSA
-      const eddsaSignature = await testContract.sign(
-        sharedPath,
-        TEST_VECTORS.eddsa.message,
-        "eddsa",
-      )
+      const eddsaSignature = await testContract.sign({
+        path: sharedPath,
+        message: TEST_VECTORS.eddsa.message,
+        signatureType: SignatureType.EDDSA,
+      })
       expectValidEDDSASignature(eddsaSignature)
 
       // Both should be valid
@@ -428,18 +491,42 @@ describe("Multi-Signature Support", () => {
 describe("Error Scenarios", () => {
   test("should handle invalid paths", async () => {
     // Empty path
-    await expect(testContract.sign("", TEST_VECTORS.ecdsa.hash)).rejects.toThrow()
+    await expect(
+      testContract.sign({
+        path: "",
+        message: TEST_VECTORS.ecdsa.hash,
+        signatureType: SignatureType.ECDSA,
+      }),
+    ).rejects.toThrow()
 
     // Whitespace only path
-    await expect(testContract.sign("   ", TEST_VECTORS.ecdsa.hash)).rejects.toThrow()
+    await expect(
+      testContract.sign({
+        path: "   ",
+        message: TEST_VECTORS.ecdsa.hash,
+        signatureType: SignatureType.ECDSA,
+      }),
+    ).rejects.toThrow()
   })
 
   test("should handle malformed messages", async () => {
     // Non-hex string
-    await expect(testContract.sign("test", "not-hex")).rejects.toThrow()
+    await expect(
+      testContract.sign({
+        path: "test",
+        message: "not-hex",
+        signatureType: SignatureType.ECDSA,
+      }),
+    ).rejects.toThrow()
 
     // Mixed case with invalid chars
-    await expect(testContract.sign("test", "gggggggg")).rejects.toThrow()
+    await expect(
+      testContract.sign({
+        path: "test",
+        message: "gggggggg",
+        signatureType: SignatureType.ECDSA,
+      }),
+    ).rejects.toThrow()
   })
 
   test("should handle unsupported signature types", () => {
@@ -450,14 +537,22 @@ describe("Error Scenarios", () => {
 
   test("should provide helpful error messages", async () => {
     try {
-      await testContract.sign("", TEST_VECTORS.ecdsa.hash)
+      await testContract.sign({
+        path: "",
+        message: TEST_VECTORS.ecdsa.hash,
+        signatureType: SignatureType.ECDSA,
+      })
       expect.unreachable("Should have thrown")
     } catch (error) {
       expect((error as Error).message).toContain("Path is required")
     }
 
     try {
-      await testContract.sign("test", "")
+      await testContract.sign({
+        path: "test",
+        message: "",
+        signatureType: SignatureType.ECDSA,
+      })
       expect.unreachable("Should have thrown")
     } catch (error) {
       expect((error as Error).message).toContain("Message is required")
