@@ -10,6 +10,7 @@ import type { Provider } from "@near-js/providers"
 import { actionCreators } from "@near-js/transactions"
 import { bytesToNumberBE, hexToBytes } from "@noble/curves/abstract/utils"
 import { secp256k1 } from "@noble/curves/secp256k1"
+import { z } from "zod/v4"
 import {
   type ContractConfig,
   ECDSAHashSchema,
@@ -84,7 +85,11 @@ export class Contract {
    */
   async sign(request: SignRequest): Promise<MPCSignature> {
     // Validate inputs using Zod schema
-    const validatedRequest = SignRequestSchema.parse(request)
+    const parseResult = SignRequestSchema.safeParse(request)
+    if (!parseResult.success) {
+      throw new Error(z.prettifyError(parseResult.error))
+    }
+    const validatedRequest = parseResult.data
 
     // Auto-detect domain_id based on signature type
     const finalDomainId =

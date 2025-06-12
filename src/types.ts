@@ -62,9 +62,12 @@ export const PayloadSchema = z.union([
 export type Payload = z.infer<typeof PayloadSchema>
 
 /**
- * Derivation path (any non-empty string)
+ * Derivation path (any non-empty string that isn't just whitespace)
  */
-export const PathSchema = z.string().min(1)
+export const PathSchema = z
+  .string()
+  .min(1, "Path is required and cannot be empty")
+  .refine((val) => val.trim().length > 0, { message: "Path is required and cannot be empty" })
 export type Path = z.infer<typeof PathSchema>
 
 /**
