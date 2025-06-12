@@ -118,7 +118,7 @@ export class Contract {
     // Make the signature request
     const result = await this.account.signAndSendTransaction({
       receiverId: this.contractId,
-      actions: [actionCreators.functionCall("sign", mpcRequest, BigInt(5 * 10 ** 12), BigInt(1))],
+      actions: [actionCreators.functionCall("sign", mpcRequest, BigInt(10 * 10 ** 12), BigInt(1))],
       waitUntil: "EXECUTED_OPTIMISTIC",
     })
 
