@@ -4,7 +4,8 @@
  * Based on signature.rs from the NEAR MPC contract and real API responses
  */
 
-import { z } from "zod"
+import type { Provider } from "@near-js/providers"
+import { z } from "zod/v4"
 
 // Zod schemas for validation and type safety
 
@@ -111,9 +112,21 @@ export type MPCSignatureResponse = z.infer<typeof MPCSignatureResponseSchema>
 /**
  * Configuration for MPC contract connection
  */
+const ProviderSchema = z.custom<Provider>(
+  // optional runtime check – keep it lightweight
+  (val) => {
+    return (
+      typeof val === "object" &&
+      val !== null &&
+      typeof (val as Provider).sendTransaction === "function"
+    )
+  },
+  "Provider is required in config for view calls",
+)
+
 export const ContractConfigSchema = z.object({
   networkId: z.enum(["mainnet", "testnet"]),
   contractId: z.string().optional(),
-  provider: z.any().optional(), // JsonRpcProvider - using any to avoid circular imports
+  provider: ProviderSchema,
 })
 export type ContractConfig = z.infer<typeof ContractConfigSchema>

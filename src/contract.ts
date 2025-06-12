@@ -44,11 +44,7 @@ export class Contract {
 
   constructor(account: Account, config: ContractConfig) {
     this.account = account
-    // Get provider from config (required for view calls)
     this.provider = config.provider
-    if (!this.provider) {
-      throw new Error("Provider is required in config for view calls")
-    }
     this.contractId = config.contractId ?? DEFAULT_CONTRACT_IDS[config.networkId]
   }
 
@@ -122,7 +118,7 @@ export class Contract {
     // Make the signature request
     const result = await this.account.signAndSendTransaction({
       receiverId: this.contractId,
-      actions: [actionCreators.functionCall("sign", mpcRequest, 300000000000000n, 1n)],
+      actions: [actionCreators.functionCall("sign", mpcRequest, BigInt(5 * 10 ** 12), BigInt(1))],
       waitUntil: "EXECUTED_OPTIMISTIC",
     })
 
