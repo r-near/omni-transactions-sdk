@@ -7,6 +7,7 @@
 
 import type { Account } from "@near-js/accounts"
 import type { Provider } from "@near-js/providers"
+import { actionCreators } from "@near-js/transactions"
 import { bytesToNumberBE, hexToBytes } from "@noble/curves/abstract/utils"
 import { secp256k1 } from "@noble/curves/secp256k1"
 import {
@@ -119,12 +120,10 @@ export class Contract {
     }
 
     // Make the signature request
-    const result = await this.account.callFunction({
-      contractId: this.contractId,
-      methodName: "sign",
-      args: mpcRequest,
-      gas: 10000000000000n, // 10 TGas
-      deposit: 1n, // Required 1 yoctoNEAR deposit
+    const result = await this.account.signAndSendTransaction({
+      receiverId: this.contractId,
+      actions: [actionCreators.functionCall("sign", mpcRequest, 300000000000000n, 1n)],
+      waitUntil: "EXECUTED_OPTIMISTIC",
     })
 
     // Parse and convert the response
