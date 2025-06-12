@@ -159,19 +159,15 @@ const parentSecret = 0x1234... // Only MPC network knows this
 
 // Anyone can compute:
 const derivationString = "near-mpc-recovery v0.1.0 epsilon derivation:alice.near,ethereum-1"
-```
-$$\varepsilon = \text{SHA3-256}(\text{derivationString})$$
-$$P_{\text{child}} = \varepsilon \cdot G + P_{\text{parent}}$$
+const ε = SHA3-256(derivationString)
+const childPublic = ε × G + parentPublic
 
-```typescript
 // Only MPC network can compute:
-```
-$$s_{\text{child}} = (\varepsilon + s_{\text{parent}}) \bmod n$$
+const childSecret = (ε + parentSecret) mod n
 
-```typescript
 // Mathematical guarantee:
+childSecret × G === childPublic ✅
 ```
-$$s_{\text{child}} \cdot G \equiv P_{\text{child}} \quad \checkmark$$
 
 ### Security Properties
 
