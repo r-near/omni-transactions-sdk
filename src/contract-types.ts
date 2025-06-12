@@ -1,7 +1,7 @@
 /**
  * TypeScript types and Zod schemas for NEAR Chain Signatures (MPC) contract
  *
- * Based on signature.rs from the NEAR MPC contract
+ * Based on signature.rs from the NEAR MPC contract and real API responses
  */
 
 import { z } from "zod"
@@ -42,21 +42,18 @@ export const EDDSAMessageSchema = hexString.refine(
 export type EDDSAMessage = z.infer<typeof EDDSAMessageSchema>
 
 /**
- * Payload for signature request
+ * Payload for signature request (matches MPC contract format exactly)
  */
-export const PayloadSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("Ecdsa"), hash: ECDSAHashSchema }),
-  z.object({ type: z.literal("Eddsa"), message: EDDSAMessageSchema }),
+export const PayloadSchema = z.union([
+  z.object({ Ecdsa: ECDSAHashSchema }),
+  z.object({ Eddsa: EDDSAMessageSchema }),
 ])
 export type Payload = z.infer<typeof PayloadSchema>
 
 /**
- * Derivation path (alphanumeric with hyphens)
+ * Derivation path (any non-empty string)
  */
-export const PathSchema = z
-  .string()
-  .min(1)
-  .regex(/^[a-zA-Z0-9-]+$/)
+export const PathSchema = z.string().min(1)
 export type Path = z.infer<typeof PathSchema>
 
 /**
@@ -78,9 +75,9 @@ export const SignRequestArgsSchema = z.object({
 export type SignRequestArgs = z.infer<typeof SignRequestArgsSchema>
 
 /**
- * MPC signature response format (actual format returned by NEAR MPC)
+ * ECDSA signature response format (Secp256k1)
  */
-export const MPCSignatureResponseSchema = z.object({
+export const MPCECDSASignatureResponseSchema = z.object({
   scheme: z.literal("Secp256k1"),
   big_r: z.object({
     affine_point: hexString, // Compressed point format
@@ -90,26 +87,26 @@ export const MPCSignatureResponseSchema = z.object({
   }),
   recovery_id: z.number().int().min(0).max(3),
 })
-export type MPCSignatureResponse = z.infer<typeof MPCSignatureResponseSchema>
+export type MPCECDSASignatureResponse = z.infer<typeof MPCECDSASignatureResponseSchema>
 
 /**
- * Standard ECDSA signature components (converted from MPC format)
+ * EDDSA signature response format (Ed25519)
+ * Actual format returned by NEAR MPC contract for Ed25519 signatures
  */
-export const ECDSASignatureSchema = z.object({
-  r: hexStringBytes(32),
-  s: hexStringBytes(32),
-  recovery_id: z.number().int().min(0).max(3),
+export const MPCEDDSASignatureResponseSchema = z.object({
+  scheme: z.literal("Ed25519"),
+  signature: z.array(z.number().int().min(0).max(255)).length(64), // 64-byte signature array
 })
-export type ECDSASignature = z.infer<typeof ECDSASignatureSchema>
+export type MPCEDDSASignatureResponse = z.infer<typeof MPCEDDSASignatureResponseSchema>
 
 /**
- * Signature result from MPC contract
+ * MPC signature response format (union of ECDSA and EDDSA)
  */
-export const SignatureResultSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("Ok"), signature: ECDSASignatureSchema }),
-  z.object({ type: z.literal("Err"), error: z.string() }),
+export const MPCSignatureResponseSchema = z.discriminatedUnion("scheme", [
+  MPCECDSASignatureResponseSchema,
+  MPCEDDSASignatureResponseSchema,
 ])
-export type SignatureResult = z.infer<typeof SignatureResultSchema>
+export type MPCSignatureResponse = z.infer<typeof MPCSignatureResponseSchema>
 
 /**
  * Configuration for MPC contract connection

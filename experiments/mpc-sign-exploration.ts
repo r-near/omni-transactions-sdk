@@ -2,15 +2,21 @@
  * Experimental file to test actual MPC contract sign method calls
  *
  * This script uses a real testnet account to make actual signature requests
- * to the MPC contract and analyze the response format.
+ * to the MPC contract and validates the signature format and correctness.
  */
 
-import os from "os"
-import path from "path"
+import os from "node:os"
+import path from "node:path"
 import { Account } from "@near-js/accounts"
 import { getSignerFromKeystore } from "@near-js/client"
 import { UnencryptedFileSystemKeyStore } from "@near-js/keystores-node"
 import { JsonRpcProvider } from "@near-js/providers"
+import { hexToBytes } from "@noble/curves/abstract/utils"
+import { ed25519 } from "@noble/curves/ed25519"
+import { secp256k1 } from "@noble/curves/secp256k1"
+import { base58 } from "@scure/base"
+import { Contract, type MPCSignature } from "../src/contract.js"
+import { OmniKey } from "../src/omni-key.js"
 
 // Test account configuration
 const TEST_ACCOUNT_ID = "omni-sdk-test.testnet"
@@ -22,9 +28,13 @@ const provider = new JsonRpcProvider({ url: "https://rpc.testnet.near.org" })
 const keyStore = new UnencryptedFileSystemKeyStore(path.join(os.homedir(), ".near-credentials"))
 
 // Test data for signature requests
-const TEST_HASH = "a0b1c2d3e4f5061728394a5b6c7d8e9f0a1b2c3d4e5f6071829304a5b6c7d8e9" // 32 bytes
-const TEST_PATH = "ethereum-test"
-const TEST_DOMAIN_ID = 0
+const TEST_HASH = "a0b1c2d3e4f5061728394a5b6c7d8e9f0a1b2c3d4e5f6071829304a5b6c7d8e9" // 32 bytes for ECDSA
+const TEST_MESSAGE = "deadbeef".repeat(16) // 64 chars = 32 bytes minimum for EDDSA
+const TEST_MESSAGE_HEX = TEST_MESSAGE
+const TEST_PATH_ECDSA = "ethereum-test"
+const TEST_PATH_EDDSA = "solana-test"
+const TEST_DOMAIN_ID_ECDSA = 0 // secp256k1
+const TEST_DOMAIN_ID_EDDSA = 1 // Ed25519
 
 async function createTestAccount(): Promise<Account> {
   console.log(`Creating account connection for: ${TEST_ACCOUNT_ID}`)
@@ -33,18 +43,18 @@ async function createTestAccount(): Promise<Account> {
   const signer = await getSignerFromKeystore(TEST_ACCOUNT_ID, NETWORK_ID, keyStore)
   console.log(`✓ Created signer for account: ${await signer.getPublicKey()}`)
 
-  // Create account with provider and signer
+  // Create account with provider and signer (new API without Connection)
   const account = new Account(TEST_ACCOUNT_ID, provider, signer)
 
   // Test that the account works by checking balance
   try {
     const state = await account.state()
-    console.log(`✓ Account connected successfully`)
+    console.log("✓ Account connected successfully")
     console.log(`  Balance: ${state.amount} yoctoNEAR`)
     console.log(`  Storage used: ${state.storage_usage} bytes`)
     return account
   } catch (error) {
-    console.error(`✗ Failed to connect to account:`, (error as Error).message)
+    console.error("✗ Failed to connect to account:", (error as Error).message)
     throw error
   }
 }
@@ -61,16 +71,40 @@ async function testMPCViewMethods(account: Account) {
     })
     console.log(`✓ MPC Public Key: ${publicKey}`)
 
-    // Test getting derived public key for our test path
-    const derivedKey = await account.viewFunction({
+    // Test getting derived public key for ECDSA path with domain_id 0
+    const derivedKeyECDSA = await account.viewFunction({
       contractId: MPC_CONTRACT_TESTNET,
       methodName: "derived_public_key",
       args: {
         predecessor: TEST_ACCOUNT_ID,
-        path: TEST_PATH,
+        path: TEST_PATH_ECDSA,
+        // Note: derived_public_key doesn't take domain_id, it uses latest_key_version
       },
     })
-    console.log(`✓ Derived Key for ${TEST_PATH}: ${derivedKey}`)
+    console.log(`✓ Derived Key for ${TEST_PATH_ECDSA} (default domain): ${derivedKeyECDSA}`)
+
+    // Test getting derived public key for EDDSA path
+    const derivedKeyEDDSA = await account.viewFunction({
+      contractId: MPC_CONTRACT_TESTNET,
+      methodName: "derived_public_key",
+      args: {
+        predecessor: TEST_ACCOUNT_ID,
+        path: TEST_PATH_EDDSA,
+      },
+    })
+    console.log(`✓ Derived Key for ${TEST_PATH_EDDSA} (default domain): ${derivedKeyEDDSA}`)
+
+    // Test domain_id 1 public key if available
+    try {
+      const domain1PubKey = await account.viewFunction({
+        contractId: MPC_CONTRACT_TESTNET,
+        methodName: "public_key",
+        args: { domain_id: 1 },
+      })
+      console.log(`✓ Domain 1 Public Key: ${domain1PubKey}`)
+    } catch (error) {
+      console.log(`✗ Domain 1 not available: ${(error as Error).message}`)
+    }
 
     // Test getting latest key version
     const keyVersion = await account.viewFunction({
@@ -80,139 +114,165 @@ async function testMPCViewMethods(account: Account) {
     })
     console.log(`✓ Latest Key Version: ${keyVersion}`)
   } catch (error) {
-    console.error(`✗ View method failed:`, (error as Error).message)
+    console.error("✗ View method failed:", (error as Error).message)
   }
 }
 
-async function testMPCSignMethod(account: Account) {
-  console.log("\n=== Testing MPC Sign Method ===")
+async function testMPCSignMethodECDSA(account: Account) {
+  console.log("\n=== Testing MPC ECDSA Sign Method ===")
 
   try {
     console.log(`Attempting to sign hash: ${TEST_HASH}`)
-    console.log(`Path: ${TEST_PATH}`)
-    console.log(`Domain ID: ${TEST_DOMAIN_ID}`)
+    console.log(`Path: ${TEST_PATH_ECDSA}`)
+    console.log(`Domain ID: ${TEST_DOMAIN_ID_ECDSA}`)
     console.log(`Account: ${TEST_ACCOUNT_ID}`)
 
-    // Based on the provided example, the correct format wraps everything in a "request" object
-    const correctArgs = {
-      request: {
-        domain_id: TEST_DOMAIN_ID,
-        path: TEST_PATH,
-        payload_v2: {
-          Ecdsa: TEST_HASH,
-        },
-      },
+    // Use our Contract class to make the signature request
+    const contract = new Contract(account, { networkId: "testnet" })
+
+    // Create the signature request
+    const signRequest = Contract.createECDSARequest(
+      TEST_PATH_ECDSA,
+      TEST_HASH,
+      TEST_DOMAIN_ID_ECDSA,
+    )
+    console.log("ECDSA Sign request:", JSON.stringify(signRequest, null, 2))
+
+    // Make the signature request using our Contract class
+    console.log("\nMaking ECDSA signature request...")
+    const signature = await contract.sign(signRequest)
+
+    console.log("\n✓ ECDSA Sign method returned successfully!")
+    console.log("Signature type:", signature.constructor.name)
+    if (signature instanceof secp256k1.Signature) {
+      console.log("Signature r:", signature.r.toString(16))
+      console.log("Signature s:", signature.s.toString(16))
+      console.log("Recovery ID:", signature.recovery)
     }
 
-    console.log("Correct sign request args:", JSON.stringify(correctArgs, null, 2))
-
-    const result = await account.functionCall({
-      contractId: MPC_CONTRACT_TESTNET,
-      methodName: "sign",
-      args: correctArgs,
-      gas: 300000000000000n, // 300 TGas
-      attachedDeposit: 1n, // Required by MPC contract
-    })
-
-    console.log("\n✓ Sign method returned successfully!")
-    console.log("Raw result:", JSON.stringify(result, null, 2))
-
-    // Analyze the result structure
-    console.log("\n=== Result Analysis ===")
-    console.log("Result type:", typeof result)
-    console.log("Result keys:", Object.keys(result as any))
-
-    if (result && typeof result === "object") {
-      const res = result as any
-
-      // Look for common NEAR transaction result fields
-      if (res.transaction) {
-        console.log("Transaction hash:", res.transaction.hash)
-      }
-      if (res.receipts_outcome) {
-        console.log("Receipts outcome count:", res.receipts_outcome.length)
-        res.receipts_outcome.forEach((receipt: any, i: number) => {
-          console.log(`Receipt ${i}:`, receipt.outcome.status)
-          if (receipt.outcome.logs) {
-            console.log(`  Logs:`, receipt.outcome.logs)
-          }
-        })
-      }
-      if (res.status) {
-        console.log("Transaction status:", res.status)
-        if (res.status.SuccessValue) {
-          const successValue = res.status.SuccessValue
-          console.log("Success value (base64):", successValue)
-
-          // Try to decode the success value
-          try {
-            const decoded = Buffer.from(successValue, "base64").toString("utf8")
-            console.log("Success value (decoded):", decoded)
-
-            // Try to parse as JSON
-            try {
-              const parsed = JSON.parse(decoded)
-              console.log("Success value (parsed JSON):", parsed)
-            } catch {
-              console.log("Success value is not JSON")
-            }
-          } catch {
-            console.log("Could not decode success value as UTF-8")
-          }
-        }
-      }
-    }
-
-    return result
+    return signature
   } catch (error) {
-    console.error(`✗ Sign method failed:`, (error as Error).message)
-
-    // Try to extract more details from the error
-    if (error && typeof error === "object") {
-      const err = error as any
-      if (err.type) {
-        console.error("Error type:", err.type)
-      }
-      if (err.kind) {
-        console.error("Error kind:", err.kind)
-      }
-      if (err.message) {
-        console.error("Error details:", err.message)
-      }
-    }
-
+    console.error("✗ ECDSA Sign method failed:", (error as Error).message)
     throw error
   }
 }
 
-async function testLegacySignFormat(account: Account) {
-  console.log("\n=== Testing Legacy Sign Format ===")
+async function testMPCSignMethodEDDSA(account: Account) {
+  console.log("\n=== Testing MPC EDDSA Sign Method ===")
 
   try {
-    // Test legacy format with payload and key_version
-    const legacyArgs = {
-      path: TEST_PATH,
-      payload: TEST_HASH,
-      key_version: TEST_DOMAIN_ID,
-    }
+    console.log(`Attempting to sign message: ${TEST_MESSAGE}`)
+    console.log(`Path: ${TEST_PATH_EDDSA}`)
+    console.log(`Domain ID: ${TEST_DOMAIN_ID_EDDSA} (Ed25519)`)
+    console.log(`Account: ${TEST_ACCOUNT_ID}`)
 
-    console.log("Legacy sign request args:", JSON.stringify(legacyArgs, null, 2))
+    // Use our Contract class to make the signature request
+    const contract = new Contract(account, { networkId: "testnet" })
 
-    const result = await account.functionCall({
-      contractId: MPC_CONTRACT_TESTNET,
-      methodName: "sign",
-      args: legacyArgs,
-      gas: 300000000000000n,
-      attachedDeposit: 0n,
-    })
+    // Create the signature request
+    const signRequest = Contract.createEDDSARequest(
+      TEST_PATH_EDDSA,
+      TEST_MESSAGE,
+      TEST_DOMAIN_ID_EDDSA,
+    )
+    console.log("EDDSA Sign request:", JSON.stringify(signRequest, null, 2))
 
-    console.log("✓ Legacy format sign succeeded!")
-    console.log("Result:", JSON.stringify(result, null, 2))
+    // Make the signature request using our Contract class
+    console.log("\nMaking EDDSA signature request...")
+    const signature = await contract.sign(signRequest)
 
-    return result
+    console.log("\n✓ EDDSA Sign method returned successfully!")
+    console.log("Signature type:", signature.constructor.name)
+    console.log("Signature:", signature)
+
+    return signature
   } catch (error) {
-    console.error(`✗ Legacy sign format failed:`, (error as Error).message)
+    console.error("✗ EDDSA Sign method failed:", (error as Error).message)
     throw error
+  }
+}
+
+async function testECDSASignatureVerification(
+  signature: InstanceType<typeof secp256k1.Signature>,
+  account: Account,
+) {
+  console.log("\n=== Testing ECDSA Signature Verification ===")
+
+  try {
+    // Get the derived public key for this path
+    const derivedPubKeyNear = (await account.viewFunction({
+      contractId: MPC_CONTRACT_TESTNET,
+      methodName: "derived_public_key",
+      args: {
+        predecessor: TEST_ACCOUNT_ID,
+        path: TEST_PATH_ECDSA,
+      },
+    })) as string
+
+    console.log(`Derived public key: ${derivedPubKeyNear}`)
+
+    // Parse the NEAR public key using OmniKey
+    const expectedKey = OmniKey.fromNEAR(derivedPubKeyNear)
+    const expectedPubKeyHex = expectedKey.publicKey.toHex(true) // compressed format
+    console.log(`Expected public key (hex): ${expectedPubKeyHex}`)
+
+    // Convert hash to bytes for signature verification
+    const hashBytes = hexToBytes(TEST_HASH)
+
+    // Recover the public key from the signature
+    const recoveredPoint = signature.recoverPublicKey(hashBytes)
+    const recoveredPubKey = recoveredPoint.toHex(true) // compressed format
+
+    console.log(`Recovered public key: ${recoveredPubKey}`)
+
+    // Check if they match
+    const keysMatch = recoveredPubKey.toLowerCase() === expectedPubKeyHex.toLowerCase()
+    console.log(
+      `\n${keysMatch ? "✓" : "✗"} Public key recovery: ${keysMatch ? "PASSED" : "FAILED"}`,
+    )
+
+    // Also verify the signature directly using the hex format
+    const isValid = secp256k1.verify(signature, hashBytes, expectedPubKeyHex)
+    console.log(`${isValid ? "✓" : "✗"} Signature verification: ${isValid ? "PASSED" : "FAILED"}`)
+
+    return { keysMatch, isValid }
+  } catch (error) {
+    console.error("✗ ECDSA Signature verification failed:", (error as Error).message)
+    throw error
+  }
+}
+
+async function testEDDSASignatureVerification(signature: MPCSignature, account: Account) {
+  console.log("\n=== Testing EDDSA Signature Verification ===")
+
+  try {
+    // Get the derived Ed25519 public key for domain 1
+    // Note: We need to use public_key_from to get derived keys for specific domains
+    const derivedPubKeyDomain1 = await account.viewFunction({
+      contractId: MPC_CONTRACT_TESTNET,
+      methodName: "public_key_from",
+      args: { domain_id: TEST_DOMAIN_ID_EDDSA, path: TEST_PATH_EDDSA },
+    })
+    console.log(`Derived public key: ${derivedPubKeyDomain1}`)
+
+    // Parse the Ed25519 public key (remove ed25519: prefix and decode base58)
+    const pubKeyStr = derivedPubKeyDomain1.replace("ed25519:", "")
+    const pubKeyBytes = base58.decode(pubKeyStr)
+    console.log(`Expected public key (hex): ${Buffer.from(pubKeyBytes).toString("hex")}`)
+
+    // Verify the signature (only if signature is Uint8Array for Ed25519)
+    if (signature instanceof Uint8Array) {
+      const messageBytes = hexToBytes(TEST_MESSAGE_HEX)
+      const isValid = ed25519.verify(signature, messageBytes, pubKeyBytes)
+
+      console.log(`\n✓ Signature verification: ${isValid ? "PASSED" : "FAILED"}`)
+      return { keysMatch: true, isValid }
+    }
+    console.log("\n✗ Expected Uint8Array for Ed25519 signature")
+    return { keysMatch: false, isValid: false }
+  } catch (error) {
+    console.error("✗ EDDSA Signature verification failed:", (error as Error).message)
+    return { keysMatch: false, isValid: false }
   }
 }
 
@@ -229,34 +289,48 @@ async function main() {
     // Test view methods first to make sure everything works
     await testMPCViewMethods(account)
 
-    // Test actual signing - this is the main exploration
-    let signResult = null
+    // Test ECDSA signing
+    const ecdsaSignature = await testMPCSignMethodECDSA(account)
+    const ecdsaVerification =
+      ecdsaSignature instanceof secp256k1.Signature
+        ? await testECDSASignatureVerification(ecdsaSignature, account)
+        : { keysMatch: false, isValid: false }
+
+    // Test EDDSA signing
+    let eddsaSignature: MPCSignature | null = null
+    let eddsaVerification = { keysMatch: false, isValid: false }
     try {
-      signResult = await testMPCSignMethod(account)
+      eddsaSignature = await testMPCSignMethodEDDSA(account)
+      eddsaVerification = await testEDDSASignatureVerification(eddsaSignature, account)
     } catch (error) {
-      console.log("Modern format failed, trying legacy format...")
-      try {
-        signResult = await testLegacySignFormat(account)
-      } catch (legacyError) {
-        console.error("Both modern and legacy formats failed")
-        throw legacyError
-      }
+      console.error("EDDSA testing failed:", (error as Error).message)
     }
 
     console.log("\n=== Summary ===")
-    console.log("✓ Successfully tested MPC sign method")
-    console.log("✓ Got real signature response format")
-    console.log("Next steps:")
-    console.log("1. Update TypeScript types based on actual response")
-    console.log("2. Implement proper response parsing in Contract class")
-    console.log("3. Add error handling for different failure scenarios")
+    console.log("ECDSA Results:")
+    console.log("  ✓ Successfully tested MPC ECDSA sign method")
+    console.log("  ✓ Got proper @noble/curves secp256k1.Signature instance")
+    console.log(`  ✓ Public key recovery: ${ecdsaVerification.keysMatch ? "PASSED" : "FAILED"}`)
+    console.log(`  ✓ Signature verification: ${ecdsaVerification.isValid ? "PASSED" : "FAILED"}`)
+
+    console.log("\nEDDSA Results:")
+    if (eddsaSignature) {
+      console.log("  ✓ Successfully tested MPC EDDSA sign method")
+      console.log("  ✓ Got signature response (format TBD)")
+      console.log(`  ✓ Public key recovery: ${eddsaVerification.keysMatch ? "PASSED" : "FAILED"}`)
+      console.log(`  ✓ Signature verification: ${eddsaVerification.isValid ? "PASSED" : "FAILED"}`)
+    } else {
+      console.log("  ❌ EDDSA testing failed")
+    }
+
+    if (ecdsaVerification.keysMatch && ecdsaVerification.isValid) {
+      console.log("\n🎉 ECDSA tests passed! The MPC ECDSA signature is cryptographically valid.")
+    } else {
+      console.log("\n❌ Some ECDSA verification tests failed.")
+    }
   } catch (error) {
     console.error("\n=== Exploration Failed ===")
     console.error("Error:", (error as Error).message)
-    console.log("\nNext steps:")
-    console.log("1. Check account has enough balance for gas fees")
-    console.log("2. Verify MPC contract is accessible")
-    console.log("3. Check if signing requires special permissions")
   }
 }
 

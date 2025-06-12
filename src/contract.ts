@@ -6,18 +6,26 @@
  */
 
 import type { Account } from "@near-js/accounts"
+import { bytesToNumberBE, hexToBytes } from "@noble/curves/abstract/utils"
+import { secp256k1 } from "@noble/curves/secp256k1"
 import {
   type ContractConfig,
   type ECDSAHash,
   ECDSAHashSchema,
-  type ECDSASignature,
   type EDDSAMessage,
   EDDSAMessageSchema,
+  type MPCECDSASignatureResponse,
+  type MPCEDDSASignatureResponse,
   type MPCSignatureResponse,
   MPCSignatureResponseSchema,
   type SignRequestArgs,
   SignRequestArgsSchema,
 } from "./contract-types.js"
+
+/**
+ * Union type for all supported signature types
+ */
+export type MPCSignature = InstanceType<typeof secp256k1.Signature> | Uint8Array // Ed25519 signatures are raw bytes
 
 /**
  * Default contract addresses for different networks
@@ -76,29 +84,98 @@ export class Contract {
   }
 
   /**
+   * Check which signature types this MPC contract supports by testing available domains
+   */
+  async getSupportedSignatureTypes(): Promise<{ ecdsa: boolean; eddsa: boolean }> {
+    const support = { ecdsa: false, eddsa: false }
+
+    try {
+      // Test domain 0 (typically ECDSA/secp256k1)
+      await this.account.viewFunction({
+        contractId: this.contractId,
+        methodName: "public_key",
+        args: { domain_id: 0 },
+      })
+      support.ecdsa = true
+    } catch {
+      // Domain 0 not available
+    }
+
+    try {
+      // Test domain 1 (typically EDDSA/Ed25519)
+      await this.account.viewFunction({
+        contractId: this.contractId,
+        methodName: "public_key",
+        args: { domain_id: 1 },
+      })
+      support.eddsa = true
+    } catch {
+      // Domain 1 not available
+    }
+
+    return support
+  }
+
+  /**
    * Request a signature for the given payload
    *
    * @param args Signature request arguments (validated with Zod)
    * @returns Promise that resolves when signature is available
    */
-  async sign(args: SignRequestArgs): Promise<ECDSASignature> {
+  async sign(args: SignRequestArgs): Promise<MPCSignature> {
     // Validate input with Zod
     const validatedArgs = SignRequestArgsSchema.parse(args)
 
-    // Make the signature request (args are already in correct format)
-    const result = await this.account.functionCall({
-      contractId: this.contractId,
-      methodName: "sign",
-      args: validatedArgs,
-      gas: 300000000000000n, // 300 TGas
-      attachedDeposit: 1n, // Required 1 yoctoNEAR deposit
-    })
+    // Detect payload type
+    const payload = validatedArgs.request.payload_v2
+    const isECDSA = "Ecdsa" in payload
+    const isEDDSA = "Eddsa" in payload
 
-    // Parse the response from the transaction result
-    const mpcResponse = this.parseSignatureResponse(result)
+    if (!isECDSA && !isEDDSA) {
+      throw new Error("Unknown payload type - must be Ecdsa or Eddsa")
+    }
 
-    // Convert MPC format to standard ECDSA format
-    return this.convertMPCToECDSA(mpcResponse)
+    // Note: Signature type is determined by domain_id parameter:
+    // domain_id 0 = ECDSA (secp256k1), domain_id 1 = EDDSA (Ed25519)
+
+    try {
+      // Make the signature request (args are already in correct format)
+      const result = await this.account.functionCall({
+        contractId: this.contractId,
+        methodName: "sign",
+        args: validatedArgs,
+        gas: 300000000000000n, // 300 TGas
+        attachedDeposit: 1n, // Required 1 yoctoNEAR deposit
+      })
+
+      // Parse the response from the transaction result
+      const mpcResponse = this.parseSignatureResponse(result)
+
+      // Convert MPC format to appropriate @noble/curves Signature
+      if (mpcResponse.scheme === "Secp256k1") {
+        return this.convertMPCToECDSASignature(mpcResponse)
+      }
+      if (mpcResponse.scheme === "Ed25519") {
+        return this.convertMPCToEDDSASignature(mpcResponse)
+      }
+      throw new Error(
+        `Unsupported signature scheme: ${(mpcResponse as { scheme?: string }).scheme || "unknown"}`,
+      )
+    } catch (error) {
+      // Provide helpful error messages for common issues
+      const errorMsg = (error as Error).message
+      if (errorMsg.includes("Payload is not Ecdsa")) {
+        throw new Error(
+          `EDDSA payload rejected for domain_id ${validatedArgs.request.domain_id}. This domain may only support ECDSA signatures. Try domain_id 1 for EDDSA.`,
+        )
+      }
+      if (errorMsg.includes("Payload is not EdDSA")) {
+        throw new Error(
+          `ECDSA payload rejected for domain_id ${validatedArgs.request.domain_id}. This domain may only support EDDSA signatures. Try domain_id 0 for ECDSA.`,
+        )
+      }
+      throw error
+    }
   }
 
   /**
@@ -116,6 +193,11 @@ export class Contract {
       const decoded = Buffer.from(res.status.SuccessValue, "base64").toString("utf8")
       const parsed = JSON.parse(decoded)
 
+      // Debug logging for Ed25519 responses
+      if (parsed.scheme === "Ed25519") {
+        console.log("Raw Ed25519 MPC Response:", JSON.stringify(parsed, null, 2))
+      }
+
       // Validate with Zod schema
       return MPCSignatureResponseSchema.parse(parsed)
     } catch (error) {
@@ -124,20 +206,28 @@ export class Contract {
   }
 
   /**
-   * Convert MPC signature format to standard ECDSA format
+   * Convert MPC signature format to secp256k1 Signature (ECDSA)
    */
-  private convertMPCToECDSA(mpcResponse: MPCSignatureResponse): ECDSASignature {
-    // Extract R from compressed point (remove "02" prefix and ensure 32 bytes)
-    const rHex = mpcResponse.big_r.affine_point.slice(2).padStart(64, "0")
+  private convertMPCToECDSASignature(
+    mpcResponse: MPCECDSASignatureResponse,
+  ): InstanceType<typeof secp256k1.Signature> {
+    // Extract R from compressed point (remove "02" prefix) and convert to bigint
+    const rBytes = hexToBytes(mpcResponse.big_r.affine_point.slice(2))
+    const sBytes = hexToBytes(mpcResponse.s.scalar)
 
-    // S scalar is already in correct format, just ensure 32 bytes
-    const sHex = mpcResponse.s.scalar.padStart(64, "0")
+    const r = bytesToNumberBE(rBytes)
+    const s = bytesToNumberBE(sBytes)
 
-    return {
-      r: rHex,
-      s: sHex,
-      recovery_id: mpcResponse.recovery_id,
-    }
+    // Create signature with recovery bit
+    return new secp256k1.Signature(r, s, mpcResponse.recovery_id)
+  }
+
+  /**
+   * Convert MPC signature format to Ed25519 signature bytes (EDDSA)
+   */
+  private convertMPCToEDDSASignature(mpcResponse: MPCEDDSASignatureResponse): Uint8Array {
+    // Convert the signature array (64 bytes) to Uint8Array
+    return new Uint8Array(mpcResponse.signature)
   }
 
   /**
@@ -148,7 +238,7 @@ export class Contract {
       request: {
         domain_id: domainId,
         path,
-        payload_v2: { type: "Ecdsa", hash },
+        payload_v2: { Ecdsa: hash },
       },
     })
   }
@@ -161,7 +251,7 @@ export class Contract {
       request: {
         domain_id: domainId,
         path,
-        payload_v2: { type: "Eddsa", message },
+        payload_v2: { Eddsa: message },
       },
     })
   }

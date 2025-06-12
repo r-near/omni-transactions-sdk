@@ -22,22 +22,20 @@ describe("Zod schema validation", () => {
     expect(PathSchema.parse("ethereum-1")).toBe("ethereum-1")
     expect(PathSchema.parse("bitcoin-test")).toBe("bitcoin-test")
     expect(PathSchema.parse("solana123")).toBe("solana123")
+    expect(PathSchema.parse("invalid_path")).toBe("invalid_path") // underscore allowed
+    expect(PathSchema.parse("path with spaces")).toBe("path with spaces") // spaces allowed
 
     expect(() => PathSchema.parse("")).toThrow() // empty
-    expect(() => PathSchema.parse("invalid_path")).toThrow() // underscore not allowed
-    expect(() => PathSchema.parse("path with spaces")).toThrow() // spaces not allowed
   })
 
   test("PayloadSchema validates both ECDSA and EDDSA", () => {
     const ecdsaPayload = {
-      type: "Ecdsa" as const,
-      hash: "a0b1c2d3e4f5061728394a5b6c7d8e9f0a1b2c3d4e5f6071829304a5b6c7d8e9",
+      Ecdsa: "a0b1c2d3e4f5061728394a5b6c7d8e9f0a1b2c3d4e5f6071829304a5b6c7d8e9",
     }
     expect(PayloadSchema.parse(ecdsaPayload)).toEqual(ecdsaPayload)
 
     const eddsaPayload = {
-      type: "Eddsa" as const,
-      message: "deadbeef".repeat(16), // 64 chars = 32 bytes minimum
+      Eddsa: "deadbeef".repeat(16), // 64 chars = 32 bytes minimum
     }
     expect(PayloadSchema.parse(eddsaPayload)).toEqual(eddsaPayload)
   })
@@ -70,14 +68,15 @@ describe("Contract static methods", () => {
       request: {
         domain_id: 0,
         path: "ethereum-1",
-        payload_v2: { type: "Ecdsa", hash },
+        payload_v2: { Ecdsa: hash },
       },
     })
   })
 
   test("createECDSARequest validates input", () => {
     expect(() => Contract.createECDSARequest("ethereum-1", "invalid", 0)).toThrow()
-    expect(() => Contract.createECDSARequest("invalid_path", "a".repeat(64), 0)).toThrow()
+    // Path can be any string now, so this won't throw
+    expect(() => Contract.createECDSARequest("invalid_path", "a".repeat(64), 0)).not.toThrow()
   })
 
   test("createEDDSARequest creates and validates correct format", () => {
@@ -88,14 +87,15 @@ describe("Contract static methods", () => {
       request: {
         domain_id: 1,
         path: "solana-1",
-        payload_v2: { type: "Eddsa", message },
+        payload_v2: { Eddsa: message },
       },
     })
   })
 
   test("createEDDSARequest validates input", () => {
     expect(() => Contract.createEDDSARequest("solana-1", "short", 1)).toThrow()
-    expect(() => Contract.createEDDSARequest("invalid_path", "a".repeat(64), 1)).toThrow()
+    // Path can be any string now, so this won't throw
+    expect(() => Contract.createEDDSARequest("invalid_path", "a".repeat(64), 1)).not.toThrow()
   })
 })
 

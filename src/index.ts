@@ -5,6 +5,7 @@ export {
   DEFAULT_CONTRACT_IDS,
   validateECDSAHash,
   validateEDDSAMessage,
+  type MPCSignature,
 } from "./contract.js"
 
 // Export Zod schemas and types for MPC contract
@@ -15,9 +16,7 @@ export {
   PathSchema,
   DomainIdSchema,
   SignRequestArgsSchema,
-  ECDSASignatureSchema,
   MPCSignatureResponseSchema,
-  SignatureResultSchema,
   ContractConfigSchema,
 } from "./contract-types.js"
 
