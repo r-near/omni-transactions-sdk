@@ -4,10 +4,11 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "test": "bun test tests/",
+    "test": "bun test tests/*.test.ts",
+    "test:unit": "bun test tests/*.test.ts",
     "test:integration": "bun test tests/integration/",
     "test:all": "bun test",
-    "test:watch": "bun test --watch tests/",
+    "test:watch": "bun test --watch tests/*.test.ts",
     "test:ci": "bun test --coverage",
     "lint": "biome check --write .",
     "typecheck": "tsc --noEmit",
