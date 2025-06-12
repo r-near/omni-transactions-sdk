@@ -64,11 +64,11 @@ export class Contract {
   /**
    * Get a derived public key for the given predecessor and path
    */
-  async getDerivedPublicKey(predecessor: string, path: string): Promise<string> {
+  async getDerivedPublicKey(predecessor: string, path: string, domainId = 0): Promise<string> {
     return (await this.account.viewFunction({
       contractId: this.contractId,
       methodName: "derived_public_key",
-      args: { predecessor, path },
+      args: { predecessor, path, domain_id: domainId },
     })) as string
   }
 
